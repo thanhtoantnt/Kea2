@@ -77,6 +77,8 @@ Kea2（及其理念）已被以下用户/项目使用或集成：
 
 - [ByteDance's Fastbot](https://github.com/bytedance/Fastbot_Android)
 
+- [Xiaomi's MiMonkey]() --- 小米内部自动化遍历测试工具（集成Kea2基于性质测试的能力）
+
 如果你也在使用Kea2，欢迎联系我们并反馈你的意见和问题。
 
 ## 设计与展望
