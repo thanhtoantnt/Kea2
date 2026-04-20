@@ -76,6 +76,8 @@ Kea2 (and its idea) has been used/integrated by
 
 - [ByteDance's Fastbot](https://github.com/bytedance/Fastbot_Android)
 
+- [Xiaomi's MiMonkey]() --- Xiaomi's automated traversal testing tool (integrating Kea2's property-based testing capabilities)
+ 
 Please let us know and willing to hear your feedback/questions if you are also using Kea2.
 
 ## Design & Roadmap
