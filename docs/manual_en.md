@@ -659,6 +659,64 @@ if os.environ.get('KEA2_HYBRID_MODE', '').lower() == 'true':
     return  # this make your following steps of this testcase not work
 ```
 
+## Advanced Feature 4: Support for WebView Interaction (支持 WebView 操作)
+
+Kea2 introduces the lightweight u2_webview extension plugin to support internal WebView operations. It enables interactions with WebView components within the App during the execution of the properties.
+
+u2_webview GitHub Repository: https://github.com/YuYoungG/uiautomator2-webview
+
+Prerequisites: To use u2_webview, the Android application under test must have WebView debugging enabled in its source code. Ensure the following settings are included in the app's code:
+```java
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+    WebView.setWebContentsDebuggingEnabled(true);
+}
+```
+
+**Usage and Core API**
+
+Operating a WebView page in Kea2 can be accomplished in just two steps:
+
+* Device Binding: Instantiate the Webview object within the setUpClass of your test class and bind it to the current Native device object.
+
+* Applying the Decorator: Add the `@with_webview` decorator to the test state (or test method) where WebView interaction is required. This decorator will automatically establish a connection with the WebView and disconnect after the operation is complete.
+
+Once inside the WebView context, you can retrieve the current page object via `self.webview.current_page` and use the DrissionPage-style syntax to locate and manipulate front-end elements.
+
+For detailed element location methods, please refer to the DrissionPage GitHub repository: https://github.com/g1879/DrissionPage
+
+**Sample**
+
+```python
+import unittest
+import uiautomator2 as u2
+
+from kea2 import precondition, prob, max_tries, KeaTestRunner, Options, keaTestLoader
+from u2_webview import Webview, with_webview
+
+PACKAGE_NAME = "com.example.package"
+
+class Sample_Test(unittest.TestCase):
+    d: u2.Device
+
+    @classmethod
+    def setUpClass(cls):
+        cls.d.settings["wait_timeout"] = 5.0
+        cls.d.settings["operation_delay"] = (0, 1.0)
+        cls.d.app_clear(PACKAGE_NAME)
+        cls.webview = Webview(cls.d)
+
+    @prob(1.0)
+    # precondition for accessing the WebView
+    @precondition(lambda self: self.d(text="Accessing WebView for Interaction").exists)
+    @with_webview
+    def test_webview(self):
+        # WebView Interaction via DrissionPage syntax
+        tab = self.webview.current_page
+        tab.ele("#username").input("testing user123")
+        tab.ele("#role").select("administrator")
+        tab.ele("#submit_btn").click()
+```
+
 # Experimental Feature
 
 ## Experimental Feature1: FBM Merge

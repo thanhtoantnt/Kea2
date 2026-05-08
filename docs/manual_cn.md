@@ -639,6 +639,63 @@ if os.environ.get('KEA2_HYBRID_MODE', '').lower() == 'true':
     
     return  # 使该测试用例后续步骤不再执行
 ```
+## 高级功能 4：支持 WebView 操作
+
+Kea2 引入轻量级的 u2_webview 扩展插件，提供对 WebView 内部操作的支持。能够在性质操作部分对 App 中的  WebView 组件进行操作。
+
+u2_webview仓库地址：https://github.com/YuYoungG/uiautomator2-webview
+
+前置条件：要使用 u2_webview，被测的 Android 应用程序必须在源码中开启了 WebView 的调试模式，需在应用代码中确保包含以下设置。
+```java
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+    WebView.setWebContentsDebuggingEnabled(true);
+}
+```
+
+**使用方法与核心 API**
+
+在 Kea2 中操作 WebView 页面只需两步即可完成：
+
+* 设备绑定： 在测试类的 setUpClass 中实例化 Webview 对象，并与当前 Native 设备对象绑定。
+
+* 挂载装饰器： 在需要与 WebView 交互的性质上，添加 `@with_webview` 装饰器。该装饰器会自动与 WebView 建立连接并在操作后断连。
+
+进入 WebView 上下文后，您可以通过 `self.webview.current_page` 获取当前的页面对象，并使用 DrissionPage 风格的极简语法来定位和操作前端元素。
+定位方法可参考DrissionPage仓库地址：https://github.com/g1879/DrissionPage
+
+**示例**
+
+```python
+import unittest
+import uiautomator2 as u2
+
+from kea2 import precondition, prob, max_tries, KeaTestRunner, Options, keaTestLoader
+from u2_webview import Webview, with_webview
+
+PACKAGE_NAME = "com.example.package"
+
+class Sample_Test(unittest.TestCase):
+    d: u2.Device
+
+    @classmethod
+    def setUpClass(cls):
+        cls.d.settings["wait_timeout"] = 5.0
+        cls.d.settings["operation_delay"] = (0, 1.0)
+        cls.d.app_clear(PACKAGE_NAME)
+        cls.webview = Webview(cls.d)
+
+    @prob(1.0)
+    # 进入WebView的前置条件
+    @precondition(lambda self: self.d(text="进入WebView交互").exists)
+    @with_webview
+    def test_webview(self):
+        # DrissionPage定位语法操作WebView
+        tab = self.webview.current_page
+        tab.ele("#username").input("测试用户123")
+        tab.ele("#role").select("管理员")
+        tab.ele("#submit_btn").click()
+```
+
 # 实验性功能
 ## 实验性功能1：FBM Merge（模型合并）
 

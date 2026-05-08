@@ -63,8 +63,13 @@ https://github.com/user-attachments/assets/6120d8f5-5a9d-4ead-b27e-840c8757e28e
 
 Kea2 (and its idea) has been used/integrated by
 
-<img src="https://github.com/user-attachments/assets/8334d717-c9d2-4fda-ad9b-611fa37935b4" alt="OPay" height="70" style="border-radius: 14px;"/> <img src="https://github.com/user-attachments/assets/f4eefbe3-1a4c-4a6e-acca-b97d35e34487" alt="Huawei" height="70" style="border-radius: 14px;"/> <img src="https://github.com/user-attachments/assets/c8da7eb1-c7bd-4fc8-ac7c-ee241168566c" alt="WeChat Pay" height="70" style="border-radius: 14px;"/> <img src="https://github.com/user-attachments/assets/cef587b2-0142-40ed-91f0-baf087d0a03a" alt="WeChat" height="70" style="border-radius: 14px;"/> 
-
+<div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start;">
+    <img src="https://github.com/user-attachments/assets/8334d717-c9d2-4fda-ad9b-611fa37935b4" alt="OPay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
+    <img src="https://github.com/user-attachments/assets/f4eefbe3-1a4c-4a6e-acca-b97d35e34487" alt="Huawei" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
+    <img src="https://github.com/user-attachments/assets/c8da7eb1-c7bd-4fc8-ac7c-ee241168566c" alt="WeChat Pay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
+    <img src="https://github.com/user-attachments/assets/cef587b2-0142-40ed-91f0-baf087d0a03a" alt="WeChat" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
+    <img src="https://github.com/user-attachments/assets/b93a09b0-2cb6-4ae9-8239-cf7efe5f8499" alt="xiaomi" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
+</div>
 
 - [OPay Business](https://play.google.com/store/apps/details?id=team.opay.pay.merchant.service) --- a financial & payment app (20 millions of active users daily). OPay uses Kea2 for regression testing on POS machines and mobile devices.
 
@@ -76,6 +81,8 @@ Kea2 (and its idea) has been used/integrated by
 
 - [ByteDance's Fastbot](https://github.com/bytedance/Fastbot_Android)
 
+- [Xiaomi's MiMonkey]() --- Xiaomi's automated traversal testing tool (integrating Kea2's property-based testing capabilities)
+ 
 Please let us know and willing to hear your feedback/questions if you are also using Kea2.
 
 ## Design & Roadmap
