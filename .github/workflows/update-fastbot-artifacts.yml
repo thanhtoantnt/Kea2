@@ -51,6 +51,7 @@ jobs:
 
       - name: Check existing imported Fastbot3 commit
         id: current
+        if: steps.fastbot.outputs.should_run == 'true'
         env:
           FASTBOT3_COMMIT: ${{ steps.fastbot.outputs.commit }}
           FASTBOT3_REPOSITORY: ${{ steps.fastbot.outputs.repository }}
@@ -74,7 +75,7 @@ jobs:
           PY
 
       - name: Checkout Fastbot3
-        if: steps.current.outputs.up_to_date != 'true'
+        if: steps.fastbot.outputs.should_run == 'true' && steps.current.outputs.up_to_date != 'true'
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.fastbot.outputs.repository }}
@@ -84,11 +85,11 @@ jobs:
           fetch-depth: 1
 
       - name: Build Fastbot builder image
-        if: steps.current.outputs.up_to_date != 'true'
+        if: steps.fastbot.outputs.should_run == 'true' && steps.current.outputs.up_to_date != 'true'
         run: docker build --platform linux/amd64 -t kea2-fastbot-builder -f .github/fastbot-builder/Dockerfile .github/fastbot-builder
 
       - name: Build Fastbot3 Android artifacts
-        if: steps.current.outputs.up_to_date != 'true'
+        if: steps.fastbot.outputs.should_run == 'true' && steps.current.outputs.up_to_date != 'true'
         env:
           FASTBOT3_ANDROID_DIR: ${{ github.workspace }}/Fastbot3/android
         run: |
@@ -110,7 +111,7 @@ jobs:
             '
 
       - name: Import Fastbot3 artifacts into Kea2
-        if: steps.current.outputs.up_to_date != 'true'
+        if: steps.fastbot.outputs.should_run == 'true' && steps.current.outputs.up_to_date != 'true'
         env:
           FASTBOT_ANDROID_DIR: ${{ github.workspace }}/Fastbot3/android
           KEA2_REPO_DIR: ${{ github.workspace }}
@@ -119,7 +120,7 @@ jobs:
         run: .github/scripts/import_fastbot_artifacts.sh
 
       - name: Commit and push artifact update
-        if: steps.current.outputs.up_to_date != 'true'
+        if: steps.fastbot.outputs.should_run == 'true' && steps.current.outputs.up_to_date != 'true'
         env:
           TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
           FASTBOT3_COMMIT: ${{ steps.fastbot.outputs.commit }}
@@ -139,5 +140,9 @@ jobs:
           git push origin "HEAD:${TARGET_BRANCH}"
 
       - name: Report up-to-date artifacts
-        if: steps.current.outputs.up_to_date == 'true'
+        if: steps.fastbot.outputs.should_run == 'true' && steps.current.outputs.up_to_date == 'true'
         run: echo "Kea2 already contains artifacts for Fastbot3 commit ${{ steps.fastbot.outputs.commit }}."
+
+      - name: Skip when PR has no Fastbot3 commit marker
+        if: steps.fastbot.outputs.should_run != 'true'
+        run: echo "${{ steps.fastbot.outputs.skip_reason }}"

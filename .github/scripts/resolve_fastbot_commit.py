@@ -65,6 +65,7 @@ def normalize_repository(value: str) -> str:
 def main() -> int:
     event = load_event()
     text = event_text(event)
+    is_manual_dispatch = bool((os.environ.get("FASTBOT3_COMMIT_INPUT") or "").strip())
 
     commit = (os.environ.get("FASTBOT3_COMMIT_INPUT") or "").strip()
     if not commit:
@@ -86,12 +87,16 @@ def main() -> int:
             repository = match.group(1) if match else DEFAULT_REPOSITORY
 
     if not commit:
-        print(
-            "Fastbot3 commit is required. Add a line like "
-            "`Fastbot3-Commit: <sha>` to the PR title/body, or use workflow_dispatch.",
-            file=sys.stderr,
-        )
-        return 2
+        if is_manual_dispatch:
+            print(
+                "Fastbot3 commit is required. Add a line like "
+                "`Fastbot3-Commit: <sha>` to the PR title/body, or use workflow_dispatch.",
+                file=sys.stderr,
+            )
+            return 2
+        write_output("should_run", "false")
+        write_output("skip_reason", "No Fastbot3-Commit pattern found in pull request title/body.")
+        return 0
     if not SHA_RE.fullmatch(commit):
         print(f"Invalid Fastbot3 commit: {commit!r}. Expected a 7-40 character hex SHA.", file=sys.stderr)
         return 2
@@ -99,6 +104,7 @@ def main() -> int:
         print(f"Invalid Fastbot3 repository: {repository!r}. Expected owner/repo.", file=sys.stderr)
         return 2
 
+    write_output("should_run", "true")
     write_output("commit", commit.lower())
     write_output("short_commit", commit[:12].lower())
     write_output("repository", repository)
