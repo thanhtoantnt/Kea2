@@ -62,12 +62,22 @@ def normalize_repository(value: str) -> str:
     return value
 
 
+def load_fastbot_version() -> dict:
+    path = Path("fastbot_version.json")
+    if not path.is_file():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def main() -> int:
     event = load_event()
     text = event_text(event)
+    fastbot_version = load_fastbot_version()
     is_manual_dispatch = bool((os.environ.get("FASTBOT3_COMMIT_INPUT") or "").strip())
 
     commit = (os.environ.get("FASTBOT3_COMMIT_INPUT") or "").strip()
+    if not commit:
+        commit = str(fastbot_version.get("commit") or "").strip()
     if not commit:
         match = COMMIT_RE.search(text)
         if match:
@@ -79,6 +89,8 @@ def main() -> int:
 
     repository = normalize_repository(os.environ.get("FASTBOT3_REPOSITORY_INPUT") or "")
     if not repository:
+        repository = normalize_repository(str(fastbot_version.get("repository") or ""))
+    if not repository:
         match = REPOSITORY_RE.search(text)
         if match:
             repository = match.group(1)
@@ -89,13 +101,16 @@ def main() -> int:
     if not commit:
         if is_manual_dispatch:
             print(
-                "Fastbot3 commit is required. Add a line like "
-                "`Fastbot3-Commit: <sha>` to the PR title/body, or use workflow_dispatch.",
+                "Fastbot3 commit is required. Set `fastbot_version.json` -> `commit`, "
+                "add `Fastbot3-Commit: <sha>` to the PR title/body, or use workflow_dispatch.",
                 file=sys.stderr,
             )
             return 2
         write_output("should_run", "false")
-        write_output("skip_reason", "No Fastbot3-Commit pattern found in pull request title/body.")
+        write_output(
+            "skip_reason",
+            "No Fastbot3 commit found in fastbot_version.json or pull request title/body.",
+        )
         return 0
     if not SHA_RE.fullmatch(commit):
         print(f"Invalid Fastbot3 commit: {commit!r}. Expected a 7-40 character hex SHA.", file=sys.stderr)
