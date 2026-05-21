@@ -1,0 +1,143 @@
+name: Update Fastbot Artifacts
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+    branches: [main]
+    paths-ignore:
+      - "kea2/assets/fastbot3-build.json"
+      - "kea2/assets/fastbot-thirdpart.jar"
+      - "kea2/assets/framework.jar"
+      - "kea2/assets/kea2-thirdpart.jar"
+      - "kea2/assets/monkeyq.jar"
+      - "kea2/assets/fastbot_libs/**"
+  workflow_dispatch:
+    inputs:
+      fastbot3_commit:
+        description: "Fastbot3 commit SHA to build"
+        required: true
+      fastbot3_repository:
+        description: "Fastbot3 repository in owner/repo form"
+        required: false
+        default: "zhangzhao4444/Fastbot3"
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: update-fastbot-artifacts-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update-fastbot-artifacts:
+    name: Build Fastbot3 and push artifacts
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout Kea2 branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Resolve Fastbot3 commit
+        id: fastbot
+        env:
+          FASTBOT3_COMMIT_INPUT: ${{ github.event.inputs.fastbot3_commit || '' }}
+          FASTBOT3_REPOSITORY_INPUT: ${{ github.event.inputs.fastbot3_repository || '' }}
+        run: python3 .github/scripts/resolve_fastbot_commit.py
+
+      - name: Check existing imported Fastbot3 commit
+        id: current
+        env:
+          FASTBOT3_COMMIT: ${{ steps.fastbot.outputs.commit }}
+          FASTBOT3_REPOSITORY: ${{ steps.fastbot.outputs.repository }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+
+          metadata_path = Path("kea2/assets/fastbot3-build.json")
+          current_commit = os.environ["FASTBOT3_COMMIT"]
+          current_repository = os.environ["FASTBOT3_REPOSITORY"]
+          up_to_date = False
+          if metadata_path.is_file():
+              metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+              up_to_date = (
+                  metadata.get("fastbot3_commit") == current_commit
+                  and metadata.get("fastbot3_repository") == current_repository
+              )
+          print(f"up_to_date={'true' if up_to_date else 'false'}")
+          PY
+
+      - name: Checkout Fastbot3
+        if: steps.current.outputs.up_to_date != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.fastbot.outputs.repository }}
+          ref: ${{ steps.fastbot.outputs.commit }}
+          path: Fastbot3
+          token: ${{ secrets.FASTBOT3_TOKEN || github.token }}
+          fetch-depth: 1
+
+      - name: Build Fastbot builder image
+        if: steps.current.outputs.up_to_date != 'true'
+        run: docker build --platform linux/amd64 -t kea2-fastbot-builder -f .github/fastbot-builder/Dockerfile .github/fastbot-builder
+
+      - name: Build Fastbot3 Android artifacts
+        if: steps.current.outputs.up_to_date != 'true'
+        env:
+          FASTBOT3_ANDROID_DIR: ${{ github.workspace }}/Fastbot3/android
+        run: |
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "$FASTBOT3_ANDROID_DIR:/workspace/android" \
+            kea2-fastbot-builder \
+            bash -lc '
+              set -euo pipefail
+              printf "sdk.dir=%s\n" "$ANDROID_HOME" > local.properties
+              ./build_fastbot.sh native
+              for attempt in 1 2 3; do
+                ./build_fastbot.sh monkeyq && break
+                rc="$?"
+                if [ "$attempt" = 3 ]; then exit "$rc"; fi
+                rm -rf "$HOME/.gradle/wrapper/dists/gradle-7.6.2-bin"
+                sleep "$((attempt * 10))"
+              done
+            '
+
+      - name: Import Fastbot3 artifacts into Kea2
+        if: steps.current.outputs.up_to_date != 'true'
+        env:
+          FASTBOT_ANDROID_DIR: ${{ github.workspace }}/Fastbot3/android
+          KEA2_REPO_DIR: ${{ github.workspace }}
+          FASTBOT3_REPOSITORY: ${{ steps.fastbot.outputs.repository }}
+          FASTBOT3_COMMIT: ${{ steps.fastbot.outputs.commit }}
+        run: .github/scripts/import_fastbot_artifacts.sh
+
+      - name: Commit and push artifact update
+        if: steps.current.outputs.up_to_date != 'true'
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          FASTBOT3_COMMIT: ${{ steps.fastbot.outputs.commit }}
+          FASTBOT3_SHORT_COMMIT: ${{ steps.fastbot.outputs.short_commit }}
+        run: |
+          if git diff --quiet -- kea2/assets/fastbot3-build.json kea2/assets/*.jar kea2/assets/fastbot_libs; then
+            echo "Fastbot artifacts are unchanged."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kea2/assets/fastbot3-build.json kea2/assets/*.jar kea2/assets/fastbot_libs
+          git commit \
+            -m "Update Fastbot3 artifacts from ${FASTBOT3_SHORT_COMMIT}" \
+            -m "Fastbot3-Commit: ${FASTBOT3_COMMIT}"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Report up-to-date artifacts
+        if: steps.current.outputs.up_to_date == 'true'
+        run: echo "Kea2 already contains artifacts for Fastbot3 commit ${{ steps.fastbot.outputs.commit }}."
