@@ -65,24 +65,24 @@ https://github.com/user-attachments/assets/6120d8f5-5a9d-4ead-b27e-840c8757e28e
 Kea2（及其理念）已被以下用户/项目使用或集成：
 
 <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start;">
-    <img src="https://github.com/user-attachments/assets/8334d717-c9d2-4fda-ad9b-611fa37935b4" alt="OPay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/f4eefbe3-1a4c-4a6e-acca-b97d35e34487" alt="Huawei" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/c8da7eb1-c7bd-4fc8-ac7c-ee241168566c" alt="WeChat Pay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/cef587b2-0142-40ed-91f0-baf087d0a03a" alt="WeChat" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
+    <img src="https://github.com/user-attachments/assets/8334d717-c9d2-4fda-ad9b-611fa37935b4" alt="OPay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/b93a09b0-2cb6-4ae9-8239-cf7efe5f8499" alt="xiaomi" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
 </div>
 
-- [OPay Business](https://play.google.com/store/apps/details?id=team.opay.pay.merchant.service) --- 一款金融支付App（每日活跃用户2000万）。OPay使用Kea2对POS机和移动设备进行回归测试。
-
-- [WeChat's iExplorer]() --- 微信内部测试平台（带有交互式UI工具以简化脚本编写）
+- [DevEco Testing](https://developer.huawei.com/consumer/cn/deveco-testing/) --- 华为HarmonyOS官方测试平台（Kea2基于Hypium构建）
 
 - [WeChat Payment's UAT]() --- 微信支付内部测试平台（通过从系统规格综合性质实现全自动基于性质的测试）
 
-- [DevEco Testing](https://developer.huawei.com/consumer/cn/deveco-testing/) --- 华为HarmonyOS官方测试平台（Kea2基于Hypium构建）
-
 - [ByteDance's Fastbot](https://github.com/bytedance/Fastbot_Android)
 
-- [Xiaomi's MiMonkey]() --- 小米内部自动化遍历测试工具（集成Kea2基于性质测试的能力）
+- [WeChat's iExplorer]() --- 微信内部测试平台（带有交互式UI工具以简化脚本编写）
+
+- [OPay Business](https://play.google.com/store/apps/details?id=team.opay.pay.merchant.service) --- 一款金融支付App（每日活跃用户2000万）。OPay使用Kea2对POS机和移动设备进行回归测试。
+
+- [Xiaomi's MiMonkey]() --- 小米内部自动化遍历测试工具（将Kea2与pytest集成，形成独立插件融入小米内部工具链）
 
 如果你也在使用Kea2，欢迎联系我们并反馈你的意见和问题。
 
@@ -329,6 +329,8 @@ kea2做了什么：
 
 ## Kea2相关论文
 
+> Kea2: Practical Property-based Testing for Mobile Apps. FSE 2026. [pdf](https://tingsu.github.io/files/fse26-Kea2.pdf)
+
 > General and Practical Property-based Testing for Android Apps. ASE 2024. [pdf](https://dl.acm.org/doi/10.1145/3691620.3694986)
 
 > An Empirical Study of Functional Bugs in Android Apps. ISSTA 2023. [pdf](https://dl.acm.org/doi/10.1145/3597926.3598138)
@@ -340,7 +342,7 @@ kea2做了什么：
 
 ## 联系我们
 
-请联系梁希贤，邮箱 [xixian@stu.ecnu.edu.cn](xixian@stu.ecnu.edu.cn)，并附上你的微信号或二维码，以便邀请加入微信群。
+请联系梁希贤，邮箱 [xixian@stu.ecnu.edu.cn](xixian@stu.ecnu.edu.cn)，并附上你的微信号或二维码，以便邀请加入微信群。也可联系马搏([boma@stu.ecnu.edu.cn](boma@stu.ecnu.edu.cn))，彭程([51285902127@stu.ecnu.edu.cn](51285902127@stu.ecnu.edu.cn))，黄宇阳([1907902090@qq.com](1907902090@qq.com))。
 
 当然，我们也在GitHub上随时欢迎你的问题和反馈。
 
@@ -355,11 +357,13 @@ Kea2由[ecnusse](https://github.com/ecnusse)团队积极开发与维护：
 - [Xixian Liang](https://xixianliang.github.io/resume/) ([@XixianLiang][])
 - [Bo Ma](https://github.com/majuzi123) ([@majuzi123][])
 - [Cheng Peng](https://github.com/Drifterpc) ([@Drifterpc][])
+- [Yuyang Huang](https://github.com/YuYoungG) ([@YuYoungG][])
 - [Ting Su](https://tingsu.github.io/) ([@tingsu][])
 
 [@XixianLiang]: https://github.com/XixianLiang
 [@majuzi123]: https://github.com/majuzi123
 [@Drifterpc]: https://github.com/Drifterpc
+[@YuYoungG]: https://github.com/YuYoungG
 [@tingsu]: https://github.com/tingsu
 
 [Zhendong Su](https://people.inf.ethz.ch/suz/), [Yiheng Xiong](https://xyiheng.github.io/), [Xiangchen Shen](https://xiangchenshen.github.io/), [Mengqian Xu](https://mengqianx.github.io/), [Haiying Sun](https://faculty.ecnu.edu.cn/_s43/shy/main.psp), [Jingling Sun](https://jinglingsun.github.io/), [Jue Wang](https://cv.juewang.info/), [Geguang Pu]()也积极参与并对项目贡献良多！
