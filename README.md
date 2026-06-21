@@ -64,24 +64,24 @@ https://github.com/user-attachments/assets/6120d8f5-5a9d-4ead-b27e-840c8757e28e
 Kea2 (and its idea) has been used/integrated by
 
 <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start;">
-    <img src="https://github.com/user-attachments/assets/8334d717-c9d2-4fda-ad9b-611fa37935b4" alt="OPay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/f4eefbe3-1a4c-4a6e-acca-b97d35e34487" alt="Huawei" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/c8da7eb1-c7bd-4fc8-ac7c-ee241168566c" alt="WeChat Pay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/cef587b2-0142-40ed-91f0-baf087d0a03a" alt="WeChat" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
+    <img src="https://github.com/user-attachments/assets/8334d717-c9d2-4fda-ad9b-611fa37935b4" alt="OPay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/b93a09b0-2cb6-4ae9-8239-cf7efe5f8499" alt="xiaomi" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
 </div>
 
-- [OPay Business](https://play.google.com/store/apps/details?id=team.opay.pay.merchant.service) --- a financial & payment app (20 millions of active users daily). OPay uses Kea2 for regression testing on POS machines and mobile devices.
-
-- [WeChat's iExplorer]() --- WeChat's in-house testing platform (coming with an interactive UI-based tool to ease writing scripts)
+- [DevEco Testing](https://developer.huawei.com/consumer/cn/deveco-testing/) --- Huawei's Official Testing Platform for HarmonyOS (Kea2 is built upon Hypium)
 
 - [WeChat Payment's UAT]() --- WeChat Payment's in-house testing platform (fully automated property-based testing by synthesizing properties from the system specifications)
 
-- [DevEco Testing](https://developer.huawei.com/consumer/cn/deveco-testing/) --- Huawei's Official Testing Platform for HarmonyOS (Kea2 is built upon Hypium)
-
 - [ByteDance's Fastbot](https://github.com/bytedance/Fastbot_Android)
 
-- [Xiaomi's MiMonkey]() --- Xiaomi's automated traversal testing tool (integrating Kea2's property-based testing capabilities)
+- [WeChat's iExplorer]() --- WeChat's in-house testing platform (coming with an interactive UI-based tool to ease writing scripts)
+
+- [OPay Business](https://play.google.com/store/apps/details?id=team.opay.pay.merchant.service) --- a financial & payment app (20 millions of active users daily). OPay uses Kea2 for regression testing on POS machines and mobile devices.
+
+- [Xiaomi's MiMonkey]() --- Xiaomi's automated traversal testing tool (integrate Kea2 with pytest to turn it into a standalone plugin for Xiaomi's internal toolchain)
  
 Please let us know and willing to hear your feedback/questions if you are also using Kea2.
 
@@ -174,7 +174,7 @@ See more options by
 kea2 run -h
 ```
 
-## Feature 2 (Run Enhanced Fastbot: Custom Testing Scenarios/Event Sequences/Widget Whitelists and Blacklists)
+## Feature 2 (Run Enhanced Fastbot: Customize Testing Scenarios/Event Sequences/Widget Whitelists and Blacklists)
 
 When running any automated UI testing tools like Fastbot to test your apps, you may find that some specifc UI pages or functionalities are difficult to reach or cover. The reason is that Fastbot lacks knowledge of your apps. Fortunately, this is the strength of script testing. In Feature 2, Kea2 can support writing small scripts to guide Fastbot to explore wherever we want. You can also use such small scripts to block specific widgets during UI testing.
 
@@ -337,6 +337,8 @@ What Kea2 has changed:
 
 ## Relevant papers of Kea2
 
+> Kea2: Practical Property-based Testing for Mobile Apps. FSE 2026. [pdf](https://tingsu.github.io/files/fse26-Kea2.pdf)
+
 > General and Practical Property-based Testing for Android Apps. ASE 2024. [pdf](https://dl.acm.org/doi/10.1145/3691620.3694986)
 
 > An Empirical Study of Functional Bugs in Android Apps. ISSTA 2023. [pdf](https://dl.acm.org/doi/10.1145/3597926.3598138)
@@ -348,7 +350,7 @@ What Kea2 has changed:
 
 ## Contact us
 
-Please contact Xixian Liang at [xixian@stu.ecnu.edu.cn](xixian@stu.ecnu.edu.cn) with your Wechat ID / QR code to be invited to the WeChat discussion group. 
+Please contact Xixian Liang at [xixian@stu.ecnu.edu.cn](xixian@stu.ecnu.edu.cn) with your Wechat ID / QR code to be invited to the WeChat discussion group. You can also contact Bo Ma([boma@stu.ecnu.edu.cn](boma@stu.ecnu.edu.cn)), Cheng Peng([51285902127@stu.ecnu.edu.cn](51285902127@stu.ecnu.edu.cn)), Yuyang Huang([1907902090@qq.com](1907902090@qq.com)).
 
 Of course, we are also ready on GitHub to answer your questions/feedback.
 
@@ -363,11 +365,13 @@ Kea2 has been actively developed and maintained by the people in [ecnusse](https
 - [Xixian Liang](https://xixianliang.github.io/resume/) ([@XixianLiang][])
 - [Bo Ma](https://github.com/majuzi123) ([@majuzi123][])
 - [Cheng Peng](https://github.com/Drifterpc) ([@Drifterpc][])
+- [Yuyang Huang](https://github.com/YuYoungG) ([@YuYoungG][])
 - [Ting Su](https://tingsu.github.io/) ([@tingsu][])
 
 [@XixianLiang]: https://github.com/XixianLiang
 [@majuzi123]: https://github.com/majuzi123
 [@Drifterpc]: https://github.com/Drifterpc
+[@YuYoungG]: https://github.com/YuYoungG
 [@tingsu]: https://github.com/tingsu
 
 [Zhendong Su](https://people.inf.ethz.ch/suz/), [Yiheng Xiong](https://xyiheng.github.io/), [Xiangchen Shen](https://xiangchenshen.github.io/), [Mengqian Xu](https://mengqianx.github.io/), [Haiying Sun](https://faculty.ecnu.edu.cn/_s43/shy/main.psp), [Jingling Sun](https://jinglingsun.github.io/), [Jue Wang](https://cv.juewang.info/), [Geguang Pu]() have also been actively participated in this project and contributed a lot!
