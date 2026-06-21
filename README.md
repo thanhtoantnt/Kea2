@@ -66,7 +66,7 @@ Kea2 (and its idea) has been used/integrated by
 <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start;">
     <img src="https://github.com/user-attachments/assets/f4eefbe3-1a4c-4a6e-acca-b97d35e34487" alt="Huawei" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/c8da7eb1-c7bd-4fc8-ac7c-ee241168566c" alt="WeChat Pay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
-    <img src="https://github.com/user-attachments/assets/d574b00f-4750-451b-a44c-82d6dea78599" alt="ByteDance" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
+    <img src="https://github.com/user-attachments/assets/7e53a1d4-f180-49ae-aa9d-abb86cf89b14" alt="ByteDance" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/cef587b2-0142-40ed-91f0-baf087d0a03a" alt="WeChat" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/8334d717-c9d2-4fda-ad9b-611fa37935b4" alt="OPay" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
     <img src="https://github.com/user-attachments/assets/b93a09b0-2cb6-4ae9-8239-cf7efe5f8499" alt="xiaomi" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
