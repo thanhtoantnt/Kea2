@@ -72,7 +72,7 @@ Kea2 (and its idea) has been used/integrated by
     <img src="https://github.com/user-attachments/assets/b93a09b0-2cb6-4ae9-8239-cf7efe5f8499" alt="xiaomi" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
 </div>
 
-- [DevEco Testing](https://developer.huawei.com/consumer/cn/deveco-testing/) --- Huawei's Official Testing Platform for HarmonyOS (Kea2 is built upon Hypium)
+- [DevEco Studio](https://developer.huawei.com/consumer/cn/deveco-studio/) --- Huawei's IDE for HarmonyOS, leveraging Kea2 to power its internal quality assessment tool, AppAnalyzer.
 
 - [WeChat Payment's UAT]() --- WeChat Payment's in-house testing platform (fully automated property-based testing by synthesizing properties from the system specifications)
 
@@ -338,7 +338,7 @@ What Kea2 has changed:
 
 ## Relevant papers of Kea2
 
-> Kea2: Practical Property-based Testing for Mobile Apps. FSE 2026. [pdf](https://tingsu.github.io/files/fse26-Kea2.pdf)
+> Kea2: Practical Property-based Testing for Mobile Apps. FSE 2026 (tool demo). [pdf](https://tingsu.github.io/files/fse26-Kea2.pdf)
 
 > General and Practical Property-based Testing for Android Apps. ASE 2024. [pdf](https://dl.acm.org/doi/10.1145/3691620.3694986)
 
@@ -351,7 +351,7 @@ What Kea2 has changed:
 
 ## Contact us
 
-Please contact Xixian Liang at [xixian@stu.ecnu.edu.cn](xixian@stu.ecnu.edu.cn) with your Wechat ID / QR code to be invited to the WeChat discussion group. You can also contact Bo Ma([boma@stu.ecnu.edu.cn](boma@stu.ecnu.edu.cn)), Cheng Peng([51285902127@stu.ecnu.edu.cn](51285902127@stu.ecnu.edu.cn)), Yuyang Huang([1907902090@qq.com](1907902090@qq.com)).
+Please contact Xixian Liang at [xixian@stu.ecnu.edu.cn](xixian@stu.ecnu.edu.cn) with your Wechat ID / QR code to be invited to the WeChat discussion group. You can also contact Bo Ma([boma@stu.ecnu.edu.cn](boma@stu.ecnu.edu.cn)), Cheng Peng([pengcheng@stu.ecnu.edu.cn](pengcheng@stu.ecnu.edu.cn)), Yuyang Huang([huangyuyang@stu.ecnu.edu.cn](huangyuyang@stu.ecnu.edu.cn)).
 
 Of course, we are also ready on GitHub to answer your questions/feedback.
 
