@@ -73,7 +73,7 @@ Kea2（及其理念）已被以下用户/项目使用或集成：
     <img src="https://github.com/user-attachments/assets/b93a09b0-2cb6-4ae9-8239-cf7efe5f8499" alt="xiaomi" style="width: 160px; height: 55px; object-fit: contain; border-radius: 14px;"/>
 </div>
 
-- [DevEco Testing](https://developer.huawei.com/consumer/cn/deveco-testing/) --- 华为HarmonyOS官方测试平台（Kea2基于Hypium构建）
+- [DevEco Studio](https://developer.huawei.com/consumer/cn/deveco-studio/) --- 华为HarmonyOS的IDE，Kea2用于提升其自动化质量检测工具AppAnalyzer。
 
 - [WeChat Payment's UAT]() --- 微信支付内部测试平台（通过从系统规格综合性质实现全自动基于性质的测试）
 
@@ -330,7 +330,7 @@ kea2做了什么：
 
 ## Kea2相关论文
 
-> Kea2: Practical Property-based Testing for Mobile Apps. FSE 2026. [pdf](https://tingsu.github.io/files/fse26-Kea2.pdf)
+> Kea2: Practical Property-based Testing for Mobile Apps. FSE 2026 (tool demo). [pdf](https://tingsu.github.io/files/fse26-Kea2.pdf)
 
 > General and Practical Property-based Testing for Android Apps. ASE 2024. [pdf](https://dl.acm.org/doi/10.1145/3691620.3694986)
 
@@ -343,7 +343,7 @@ kea2做了什么：
 
 ## 联系我们
 
-请联系梁希贤，邮箱 [xixian@stu.ecnu.edu.cn](xixian@stu.ecnu.edu.cn)，并附上你的微信号或二维码，以便邀请加入微信群。也可联系马搏([boma@stu.ecnu.edu.cn](boma@stu.ecnu.edu.cn))，彭程([51285902127@stu.ecnu.edu.cn](51285902127@stu.ecnu.edu.cn))，黄宇阳([1907902090@qq.com](1907902090@qq.com))。
+请联系梁希贤，邮箱 [xixian@stu.ecnu.edu.cn](xixian@stu.ecnu.edu.cn)，并附上你的微信号或二维码，以便邀请加入微信群。也可联系马搏([boma@stu.ecnu.edu.cn](boma@stu.ecnu.edu.cn))，彭程([pengcheng@stu.ecnu.edu.cn](pengcheng@stu.ecnu.edu.cn))，黄宇阳([huangyuyang@stu.ecnu.edu.cn](huangyuyang@stu.ecnu.edu.cn))。
 
 当然，我们也在GitHub上随时欢迎你的问题和反馈。
 
