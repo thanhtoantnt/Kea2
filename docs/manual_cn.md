@@ -697,7 +697,7 @@ class Sample_Test(unittest.TestCase):
         tab.ele("#submit_btn").click()
 ```
 
-https://github.com/user-attachments/assets/b504fd4f-3b76-4b19-ab39-35418402d1bd
+https://github.com/user-attachments/assets/f0e5c116-03da-41b0-8f12-c62620fc09a8
 
 
 # 实验性功能
