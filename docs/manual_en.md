@@ -718,6 +718,10 @@ class Sample_Test(unittest.TestCase):
         tab.ele("#submit_btn").click()
 ```
 
+
+https://github.com/user-attachments/assets/f0e5c116-03da-41b0-8f12-c62620fc09a8
+
+
 # Experimental Feature
 
 ## Experimental Feature1: FBM Merge

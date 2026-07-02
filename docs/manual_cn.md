@@ -697,6 +697,9 @@ class Sample_Test(unittest.TestCase):
         tab.ele("#submit_btn").click()
 ```
 
+https://github.com/user-attachments/assets/f0e5c116-03da-41b0-8f12-c62620fc09a8
+
+
 # 实验性功能
 ## 实验性功能1：FBM Merge（模型合并）
 
