@@ -83,7 +83,9 @@ Kea2 (and its idea) has been used/integrated by
 - [OPay Business](https://play.google.com/store/apps/details?id=team.opay.pay.merchant.service) --- a financial & payment app (20 millions of active users daily). OPay uses Kea2 for regression testing on POS machines and mobile devices.
 
 - [Xiaomi's MiMonkey]() --- Xiaomi's automated traversal testing tool (integrate Kea2 with pytest to turn it into a standalone plugin for Xiaomi's internal toolchain)
- 
+
+[**👉 Click here to see how users are using Kea2**](docs/user_cases_en.md)
+
 Please let us know and willing to hear your feedback/questions if you are also using Kea2.
 
 ## Design & Roadmap
