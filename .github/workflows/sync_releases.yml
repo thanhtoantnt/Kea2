@@ -1,0 +1,31 @@
+name: Sync Releases to Feishu
+
+on:
+  release:
+    types: [published]          # 新 Release 发布时触发
+  workflow_dispatch:            # 手动触发
+  schedule:
+    - cron: '0 2 * * *'         # 每天凌晨 2 点全量同步
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Run sync
+        env:
+          FEISHU_USER_TOKEN: ${{ secrets.FEISHU_USER_TOKEN }}
+          FEISHU_APP_TOKEN: ${{ secrets.FEISHU_APP_TOKEN }}
+          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python .github/scripts/sync_releases_to_feishu.py
