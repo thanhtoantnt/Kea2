@@ -83,7 +83,7 @@ Kea2（及其理念）已被以下用户/项目使用或集成：
 
 - [OPay Business](https://play.google.com/store/apps/details?id=team.opay.pay.merchant.service) --- 一款金融支付App（每日活跃用户2000万）。OPay使用Kea2对POS机和移动设备进行回归测试。
 
-- [Xiaomi's MiMonkey]() --- 小米内部自动化遍历测试工具（将Kea2与pytest集成，形成独立插件融入小米内部工具链）
+- [Xiaomi]() --- 将Kea2与pytest集成，形成独立插件融入小米内部工具链，并与其内部自动化遍历测试工具结合使用。
 
 [**👉 点击此处查看大家都在用Kea2解决什么问题**](docs/user_cases_cn.md)
 
