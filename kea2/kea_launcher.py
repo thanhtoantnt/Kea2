@@ -22,7 +22,16 @@ def _set_runner_parser(subparsers: "argparse._SubParsersAction[argparse.Argument
         required=False,
         default=None,
         type=str,
-        help="The serial of your device. Can be found with `adb devices`",
+        help="Device serial (`adb devices` or `hdc list targets`)",
+    )
+
+    parser.add_argument(
+        "--platform",
+        dest="platform",
+        required=False,
+        default="android",
+        choices=["android", "harmony", "harmonyos", "hm", "ohos"],
+        help="Target OS: android (Fastbot+uiautomator2) or harmony (hdc+hmdriver2+random explorer)",
     )
 
     parser.add_argument(
@@ -294,6 +303,7 @@ def run(args=None) -> ReturnCode:
         packageNames=args.package_names,
         serial=args.serial,
         transport_id=args.transport_id,
+        platform=getattr(args, "platform", None) or "android",
         running_mins=args.running_minutes,
         maxStep=args.max_step,
         throttle=args.throttle_ms,

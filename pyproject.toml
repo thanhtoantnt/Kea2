@@ -16,6 +16,11 @@ authors = [
     { name = "Xixian Liang", email = "xixian@stu.ecnu.edu.cn" }
 ]
 
+[project.optional-dependencies]
+harmony = [
+    "hmdriver2",
+]
+
 [project.scripts]
 kea2 = "kea2.cli:main"
 
@@ -24,6 +29,6 @@ include = ["kea2*"]
 
 [tool.setuptools.package-data]
 kea2 = [
-    "assets/**/*", 
+    "assets/**/*",
     "report/templates/**/*"
 ]

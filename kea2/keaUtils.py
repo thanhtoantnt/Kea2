@@ -115,6 +115,8 @@ class Options:
     serial: str = None
     # target device with transport_id
     transport_id: str = None
+    # Platform: "android" (default, Fastbot+u2) or "harmony" (hdc+hmdriver2+random explorer)
+    platform: str = "android"
     # max step in exploration (availble in stage 2~3)
     maxStep: Union[str, float] = float("inf")
     # time(mins) for exploration
@@ -174,7 +176,7 @@ class Options:
 
         self._sanitize_args()
 
-        _check_package_installation(self.packageNames)
+        _check_package_installation(self.packageNames, platform=self.platform)
         _save_bug_report_configs(self)
         _save_options_configs(self)
 
@@ -236,6 +238,13 @@ class Options:
             raise ValueError("--throttle should be greater than or equal to 0")
 
     def _set_driver(self):
+        platform = (self.platform or "android").lower()
+        if platform in ("harmony", "harmonyos", "hm", "ohos"):
+            from .hmDriver import HMDriver
+            from .hdcUtils import HDCDevice
+            HDCDevice.setDevice(self.serial)
+            HMDriver.setDevice(self.serial)
+            return
         target_device = dict()
         if self.serial:
             target_device["serial"] = self.serial
@@ -263,7 +272,17 @@ class Options:
         return opts
 
 
-def _check_package_installation(packageNames):
+def _check_package_installation(packageNames, platform: str = "android"):
+    platform = (platform or "android").lower()
+    if platform in ("harmony", "harmonyos", "hm", "ohos"):
+        from .hdcUtils import HDCDevice
+        hdc = HDCDevice()
+        for package in packageNames or []:
+            if not hdc.package_installed(package):
+                logger.error(f"package {package} not installed (hdc bm dump -a). Abort.")
+                raise ValueError(f"{package} not installed")
+        return
+
     installed_packages = set(ADBDevice().list_packages())
 
     for package in packageNames:
@@ -369,7 +388,13 @@ class SetUpClassExtension:
         testClass = test.__class__
         if not repr(testClass) in self._setup:
             self._setup.add(repr(testClass))
-            script_driver = U2Driver.getScriptDriver(mode="proxy")
+            platform = (getattr(self.options, "platform", None) or "android").lower()
+            if platform in ("harmony", "harmonyos", "hm", "ohos"):
+                from .hmDriver import HMDriver
+                HMDriver.setDevice(self.options.serial)
+                script_driver = HMDriver.getScriptDriver()
+            else:
+                script_driver = U2Driver.getScriptDriver(mode="proxy")
             setattr(testClass, self.options.driverName, script_driver)
             try:
                 testClass.setUpClass()
@@ -400,6 +425,11 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
     @merge_fbm
     @catchException("Unexpected Error in KeaTestRunner.run")
     def run(self, test):
+        # HarmonyOS path: no Fastbot; use hmdriver2 + random explorer.
+        platform = (getattr(self.options, "platform", None) or "android").lower()
+        if platform in ("harmony", "harmonyos", "hm", "ohos"):
+            return self._run_harmony(test)
+
         self.validateAndCollectProperties(test)
 
         if len(self.allProperties) == 0:
@@ -556,7 +586,135 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
 
         self.tearDown()
         return result
-    
+
+    @catchException("Unexpected Error in KeaTestRunner._run_harmony")
+    def _run_harmony(self, test):
+        """Feature 1/3 on HarmonyOS: random UI explorer + property checks (no Fastbot)."""
+        from .hmDriver import HMDriver
+        from .harmonyExplorer import HarmonyExplorer
+        from .hdcUtils import HDCDevice
+
+        self.validateAndCollectProperties(test)
+        if len(self.allProperties) == 0:
+            logger.warning("No property has been found.")
+
+        self._setOuputDir()
+        KeaJsonResult.setProperties(self.allProperties)
+        KeaJsonResult.setInvariants(self.allInvariants)
+        self.resultclass = KeaJsonResult
+        result: KeaJsonResult = self._makeResult()
+        registerResult(result)
+        result.failfast = self.failfast
+        result.buffer = self.buffer
+        result.tb_locals = self.tb_locals
+
+        stamp_manager = StampManager()
+        HDCDevice.setDevice(self.options.serial)
+        hdc = HDCDevice()
+        HMDriver.setDevice(hdc.serial)
+
+        self.scriptDriver = HMDriver.getScriptDriver()
+        explorer = HarmonyExplorer(
+            self.scriptDriver,
+            self.options.packageNames or [],
+            throttle_ms=int(self.options.throttle or 500),
+        )
+
+        for t in {**self.allProperties, **self.allInvariants}.values():
+            self.setUpClass(t)
+
+        explorer.init(options=self.options, stamp=stamp_manager.stamp)
+        result.flushResult()
+        start_time = perf_counter()
+        self.stepsCount = 0
+        logger.info(
+            "HarmonyOS mode: hdc + hmdriver2 + random explorer "
+            "(Fastbot is Android-only)."
+        )
+
+        try:
+            while self.stepsCount < self.options.maxStep:
+                logger.info(
+                    f"[Harmony PBT] step={self.stepsCount} "
+                    f"elapsed={perf_counter()-start_time:.1f}s"
+                )
+                if self.shouldStop(start_time):
+                    logger.info("Exploration time up (--running-minutes).")
+                    break
+
+                if (
+                    self.options.restart_app_period
+                    and self.stepsCount
+                    and self.stepsCount % self.options.restart_app_period == 0
+                ):
+                    for app in self.options.packageNames or []:
+                        self.scriptDriver.app_stop(app)
+                    sleep(2)
+                    explorer.start_apps()
+                    self.stepsCount += 1
+                    continue
+
+                if explorer.executed_prop:
+                    explorer.executed_prop = False
+                    hierarchy_raw = explorer.dumpHierarchy()
+                else:
+                    self.stepsCount += 1
+                    hierarchy_raw = explorer.stepMonkey(None)
+
+                if not hierarchy_raw:
+                    logger.warning("Empty hierarchy; skip step.")
+                    continue
+
+                result.setCurrentStepsCount(self.stepsCount)
+                staticCheckerDriver = HMDriver.getStaticChecker(hierarchy=hierarchy_raw)
+
+                for _, inv in self.allInvariants.items():
+                    setattr(inv, self.options.driverName, staticCheckerDriver)
+                    try:
+                        inv(result)
+                    finally:
+                        result.printError(inv)
+                        result.updateExecutionInfo(inv)
+
+                checkableProperties = self.getCheckableProperties(
+                    hierarchy_raw, result, staticCheckerDriver
+                )
+                if not checkableProperties:
+                    continue
+
+                # live driver for property body
+                self.scriptDriver = HMDriver.getScriptDriver()
+                self.scriptDriver.setHierarchy(None)  # force live queries in rules
+                propertyName = random.choice(checkableProperties)
+                prop_test = self.allProperties[propertyName]
+                result.addExcutedProperty(prop_test, self.stepsCount)
+                setattr(prop_test, self.options.driverName, self.scriptDriver)
+                try:
+                    prop_test(result)
+                finally:
+                    result.printError(prop_test)
+                result.updateExecutionInfo(prop_test)
+                explorer.executed_prop = True
+                result.flushResult()
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt — stopping Harmony run.")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise KeaRuntimeError("Harmony Kea run failed.") from e
+        finally:
+            explorer.stopMonkey()
+            result.flushResult()
+            result.logSummary()
+            try:
+                self._generate_bug_report()
+            except Exception as e:
+                logger.warning(f"bug report generation skipped: {e}")
+            HMDriver.tearDown()
+
+        self.tearDown()
+        return result
+
     def shouldStop(self, start_time):
         if self.options.running_mins is None:
             return False

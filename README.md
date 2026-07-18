@@ -102,6 +102,17 @@ Several key features of Kea2 are inspired by **[Hypothesis](https://github.com/H
 - [Appium](https://github.com/appium/appium), [Hypium](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/hypium-python-guidelines) (for HarmonyOS/Open Harmony);
 - any other automated UI testing tools (not limited to Fastbot)
 
+### HarmonyOS / OpenHarmony (this fork)
+
+`--platform harmony` runs Feature 2/3 with **hdc + hmdriver2** and a **random UI explorer** (Fastbot is Android-only).
+See **[docs/harmonyos.md](docs/harmonyos.md)** and `examples/harmony_clock_sample.py`.
+
+```bash
+pip install 'kea2-python[harmony]'   # or: uv pip install hmdriver2
+kea2 run --platform harmony -s <SERIAL> -p com.example.app \
+  --running-minutes 5 --max-step 30 propertytest discover -p 'test_*.py' -s .
+```
+
 
 ## Installation
 
