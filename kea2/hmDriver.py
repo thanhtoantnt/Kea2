@@ -173,6 +173,14 @@ class HMDevice:
     def __call__(self, **kwargs) -> HMUiObject:
         return HMUiObject(self, kwargs)
 
+    def click(self, x: int, y: int):
+        # Coordinate tap — parity with the Android u2 driver (d.click(x,y)). Harmony
+        # apps often have icon-only buttons (e.g. Calendar's '+') with no unique
+        # text/description/type selector, so a property can only self-drive them by
+        # the coordinates from a live dump. Without this, such targets are reachable
+        # only when the random explorer happens to tap them.
+        return self._click_xy(x, y)
+
     def _find_first(self, selectors: dict) -> Optional[dict]:
         root = self._hierarchy
         if root is None:
