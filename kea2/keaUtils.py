@@ -647,6 +647,19 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                     logger.info("Exploration time up (--running-minutes).")
                     break
 
+                # State-based foreground re-grab. The explorer can lose the SUT to
+                # the on-screen IME (text-field tap) or another app; without this the
+                # step explores the wrong surface and preconditions never match.
+                # Time-based --restart-app-period cannot detect this; check each step.
+                sut_pkgs = self.options.packageNames or []
+                if sut_pkgs and not any(explorer.hdc.is_package_foreground(p) for p in sut_pkgs):
+                    logger.info("[Harmony] SUT lost foreground (IME/other app); relaunching")
+                    for _ in range(2):
+                        explorer.start_apps()
+                        sleep(1.5)
+                        if any(explorer.hdc.is_package_foreground(p) for p in sut_pkgs):
+                            break
+
                 if (
                     self.options.restart_app_period
                     and self.stepsCount

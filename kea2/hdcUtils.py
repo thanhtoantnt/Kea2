@@ -114,3 +114,13 @@ class HDCDevice:
     def package_installed(self, package: str) -> bool:
         out = self.shell("bm dump -a")
         return package in out
+
+    def is_package_foreground(self, package: str) -> bool:
+        # True iff <package> is the FOREGROUND ability (aa dump -l). HarmonyOS
+        # lets the on-screen IME (com.huawei.hmos.inputmethod) or another app
+        # steal foreground mid-run when the explorer taps a text field / notification;
+        # then the explorer drives the IME, not the SUT, and preconditions never match
+        # (contacts: 2/3 properties ended not_checked this way). The harmony loop
+        # uses this to relaunch the SUT before the step is wasted on the wrong app.
+        out = self.shell("aa dump -l")
+        return f"bundle name [{package}]" in out and "state #FOREGROUND" in out.replace("\n", " ")
