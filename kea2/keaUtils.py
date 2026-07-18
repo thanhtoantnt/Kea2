@@ -496,12 +496,17 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                         # stepMonkey will change the ui state and return the new ui hierarchy
                         # dumpHierarchy will just return the current ui hierarchy
                         # this is to avoid losing the ui state after executing a property
+                        # Both branches advance stepsCount: a property-recheck cycle
+                        # is still one exploration iteration, so --max-step bounds TOTAL
+                        # iterations. Previously the dumpHierarchy branch did not increment,
+                        # so frequent property firing kept stepsCount frozen and --max-step
+                        # never terminated the run (only --running-minutes did).
                         xml_raw: str = ""
+                        self.stepsCount += 1
                         if fb.executed_prop:
                             fb.executed_prop = False
                             xml_raw = fb.dumpHierarchy()
                         else:
-                            self.stepsCount += 1
                             logger.info(f"Sending monkeyEvent {self._monkey_event_count}")
                             xml_raw = fb.stepMonkey(self._monkeyStepInfo)
                     # If the connection is refused, fastbot might have stpped running
@@ -656,6 +661,7 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
 
                 if explorer.executed_prop:
                     explorer.executed_prop = False
+                    self.stepsCount += 1
                     hierarchy_raw = explorer.dumpHierarchy()
                 else:
                     self.stepsCount += 1
