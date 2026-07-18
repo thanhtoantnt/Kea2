@@ -107,7 +107,14 @@ class HMUiObject:
     def get_text(self) -> str:
         node = self.driver._find_first(self.selectors)
         if node is not None:
-            return str(_attrs(node).get("text") or "")
+            text = str(_attrs(node).get("text") or "")
+            if text:
+                return text
+        # Static text empty (e.g. a TextInput whose live value is not in the
+        # dumped `text` attr) → fall through to a live query so rules can assert
+        # on the actual displayed value instead of being forced to structural
+        # oracles. Without this, get_text() on a live TextInput returned '' even
+        # though hmdriver2's live .info['text'] shows the value.
         return self.driver._live_get_text(self.selectors) or ""
 
     @property
@@ -203,12 +210,12 @@ class HMDevice:
     def _live_get_text(self, selectors: dict) -> str:
         obj = self._live_obj(selectors)
         try:
-            info = obj.info
-            if isinstance(info, dict):
-                return str(info.get("text") or "")
+            # hmdriver2 .info is an ElementInfo dataclass, not a dict — use the
+            # .text property directly (calls Component.getText), which returns
+            # the live value even for TextInput whose static `text` attr is ''.
+            return str(obj.text or "")
         except Exception:
-            pass
-        return ""
+            return ""
 
     def _click_xy(self, x: int, y: int):
         # prefer driver click coordinate
