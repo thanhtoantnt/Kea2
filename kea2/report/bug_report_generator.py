@@ -246,6 +246,18 @@ class BugReportGenerator(CrashAnrMixin, PathParserMixin, ScreenshotsMixin):
         widget_coverage = WidgetCoverage(output_dir=self.data_path.output_dir, options=self.options)
         widget_coverage.generate_coverage_report()
 
+        # The HTML bug report (monkey events, screenshots, per-step timeline) is
+        # Fastbot-specific and built from steps.log. HarmonyOS runs have no
+        # steps.log (random explorer, not Fastbot), so skip cleanly instead of
+        # collecting empty test data and raising "No test data collected" —
+        # the run's authoritative results already live in result_*.json.
+        if not self.data_path.steps_log.exists():
+            logger.info(
+                "Skipping HTML bug report (no steps.log — HarmonyOS path); "
+                "see result_*.json for property results"
+            )
+            return None
+
         test_data = None
         with thread_pool(max_workers=128) as executor:
             logger.debug("Starting bug report generation")
