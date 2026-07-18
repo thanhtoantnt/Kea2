@@ -91,15 +91,25 @@ class HDCDevice:
         self.shell(f"aa force-stop {package}")
 
     def start_ability(self, package: str, ability: str = "EntryAbility") -> str:
-        # Common main ability names; caller may override via env PBT_KEA_ABILITY
-        ability = os.environ.get("PBT_KEA_ABILITY") or ability
-        out = self.shell(f"aa start -a {ability} -b {package}")
-        if "10106102" in out or "failed to start" in out.lower():
-            # try wake + swipe then retry once
-            self.shell("uitest uiInput keyEvent Power")
-            self.shell("uitest uiInput swipe 540 2000 540 400 300")
-            out = self.shell(f"aa start -a {ability} -b {package}")
-        return out
+        # PBT_KEA_ABILITY overrides; else try common system-app ability names.
+        env_ab = os.environ.get("PBT_KEA_ABILITY")
+        # ponytail: short fallback list; system HAPs rarely export EntryAbility
+        candidates = []
+        for a in (env_ab, ability, "MainAbility", f"{package}.phone", f"{package}.MainAbility"):
+            if a and a not in candidates:
+                candidates.append(a)
+        last = ""
+        for a in candidates:
+            out = self.shell(f"aa start -a {a} -b {package}")
+            last = out
+            if "start ability successfully" in out.lower():
+                return out
+            if "failed to start" not in out.lower() and "error" not in out.lower():
+                return out
+        # wake + swipe once, retry first candidate
+        self.shell("uitest uiInput keyEvent Power")
+        self.shell("uitest uiInput swipe 540 2000 540 400 300")
+        return self.shell(f"aa start -a {candidates[0]} -b {package}") or last
 
     def package_installed(self, package: str) -> bool:
         out = self.shell("bm dump -a")
