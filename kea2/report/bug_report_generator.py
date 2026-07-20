@@ -246,6 +246,18 @@ class BugReportGenerator(CrashAnrMixin, PathParserMixin, ScreenshotsMixin):
         widget_coverage = WidgetCoverage(output_dir=self.data_path.output_dir, options=self.options)
         widget_coverage.generate_coverage_report()
 
+        # The HTML bug report (monkey events, screenshots, per-step timeline) is
+        # Fastbot-specific and built from steps.log. HarmonyOS runs have no
+        # steps.log (random explorer, not Fastbot), so skip cleanly instead of
+        # collecting empty test data and raising "No test data collected" —
+        # the run's authoritative results already live in result_*.json.
+        if not self.data_path.steps_log.exists():
+            logger.info(
+                "Skipping HTML bug report (no steps.log — HarmonyOS path); "
+                "see result_*.json for property results"
+            )
+            return None
+
         test_data = None
         with thread_pool(max_workers=128) as executor:
             logger.debug("Starting bug report generation")
@@ -554,16 +566,30 @@ class BugReportGenerator(CrashAnrMixin, PathParserMixin, ScreenshotsMixin):
         # Format timestamp for display
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Ensure coverage_trend has data
+        # Ensure coverage_trend has data + required template keys
         if not data.get("coverage_trend"):
             logger.warning("No coverage trend data")
-            # Use the same field names as in coverage.log file
-            data["coverage_trend"] = [{"stepsCount": 0, "coverage": 0, "testedActivitiesCount": 0}]
+            data["coverage_trend"] = [{
+                "stepsCount": 0,
+                "coverage": 0,
+                "testedActivitiesCount": 0,
+                "totalActivitiesCount": 0,
+                "totalActivities": [],
+                "testedActivities": [],
+                "activityCountHistory": {},
+            }]
+        data.setdefault("coverage", 0)
+        data.setdefault("total_activities_count", 0)
+        data.setdefault("tested_activities_count", 0)
+        data.setdefault("total_activities", [])
+        data.setdefault("tested_activities", [])
+        data.setdefault("activity_count_history", {})
 
         # Ensure widget_coverage_trend has data
         if not data.get("widget_coverage_trend"):
             logger.warning("No widget coverage trend data")
             data["widget_coverage_trend"] = [{"stepsCount": 0, "coverage": 0}]
+        data.setdefault("widget_coverage_count", 0)
 
         # Convert coverage_trend to JSON string, ensuring all data points are included
         coverage_trend_json = json.dumps(data["coverage_trend"])

@@ -48,20 +48,34 @@ class WidgetCoverage:
     @property
     def all_activities(self) -> Set[str]:
         if self._all_activities is None:
-            with open(self.output_dir / "coverage.log") as f:
-                line = f.readline()
-                data = json.loads(line)
-                self._all_activities = set(data["totalActivities"])
+            cov = self.output_dir / "coverage.log"
+            if cov.exists():
+                with open(cov) as f:
+                    line = f.readline()
+                    data = json.loads(line) if line.strip() else {}
+                    self._all_activities = set(data.get("totalActivities") or [])
+            else:
+                # HarmonyOS / incomplete runs: no Fastbot coverage.log
+                self._all_activities = set()
         return self._all_activities
                 
 
     def generate_coverage_report(self):
+        if not self.steps_log.exists():
+            # HarmonyOS path has no Fastbot steps.log (the random explorer does
+            # not emit one). Widget coverage is Fastbot-specific, so skip the
+            # report cleanly instead of raising — otherwise bug-report generation
+            # logs a noisy FileNotFoundError traceback on every Harmony run even
+            # though the run itself succeeded. Checked before profile_period so a
+            # Harmony dir (which also lacks options.json) skips without touching it.
+            logger.info(
+                "Skipping widget coverage report (no steps.log — HarmonyOS path)"
+            )
+            return
+
         logger.info(
             f"Generating widget coverage report (profile_period={self.profile_period})..."
         )
-
-        if not self.steps_log.exists():
-            raise FileNotFoundError(f"Steps log file not found: {self.steps_log}")
 
         triggered_widgets, coverage_records = self._analyze_steps(self.profile_period)
         logger.info(f"Total unique widgets triggered: {len(triggered_widgets)}")
