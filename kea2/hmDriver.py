@@ -96,18 +96,11 @@ class HMUiObject:
             time.sleep(0.2)
 
     def click(self):
-        # Prefer live click for property bodies; static path only if hierarchy set.
-        if self.driver._hierarchy is None:
-            return self.driver._live_click(self.selectors)
-        node = self.driver._find_first(self.selectors)
-        if node is None:
-            return self.driver._live_click(self.selectors)
-        bounds = _parse_bounds(_attrs(node).get("bounds"))
-        if bounds:
-            x = (bounds[0] + bounds[2]) // 2
-            y = (bounds[1] + bounds[3]) // 2
-            return self.driver._click_xy(x, y)
-        return self.driver._live_click(self.selectors)
+        # Always prefer live click with retry. Static hierarchy is often stale
+        # between precondition check and body (explorer/tab animation) — clicking
+        # stale bounds or a disappeared node raised ElementNotFoundError (calendar
+        # Week-tab race: 1 error / 7 exec). Live-refresh + short retry kills that.
+        return self.driver._live_click(self.selectors, retries=3)
 
     def set_text(self, text: str):
         return self.driver._live_set_text(self.selectors, text)
@@ -210,9 +203,22 @@ class HMDevice:
                 kw[k] = v
         return self._hm(**kw)
 
-    def _live_click(self, selectors: dict):
-        obj = self._live_obj(selectors)
-        return obj.click()
+    def _live_click(self, selectors: dict, retries: int = 3):
+        # Fresh live query each attempt; brief settle between retries so tab
+        # animations finish (calendar Week ElementNotFound race).
+        last = None
+        for i in range(max(1, retries)):
+            try:
+                obj = self._live_obj(selectors)
+                return obj.click()
+            except Exception as e:
+                last = e
+                name = type(e).__name__
+                if "ElementNotFound" not in name and "NotFound" not in name:
+                    raise
+                time.sleep(0.4)
+        if last is not None:
+            raise last
 
     def _live_set_text(self, selectors: dict, text: str):
         obj = self._live_obj(selectors)
