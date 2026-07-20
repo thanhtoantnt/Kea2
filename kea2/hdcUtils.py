@@ -151,12 +151,19 @@ class HDCDevice:
         env_ab = os.environ.get("PBT_KEA_ABILITY")
         discovered = self.resolve_main_ability(package)
         candidates = []
+        # bm dump may return FQN (clock.phone) or pkg.CalculatorAbility; aa start
+        # sometimes wants short name only (CalculatorAbility). Try both.
+        discovered_short = None
+        if discovered and discovered.startswith(package + "."):
+            discovered_short = discovered[len(package) + 1 :]
         for a in (
             env_ab,
+            discovered_short,
             discovered,
             ability,
             "EntryAbility",
             "MainAbility",
+            "CalculatorAbility",
             f"{package}.phone",
             f"{package}.MainAbility",
         ):
