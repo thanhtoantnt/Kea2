@@ -625,10 +625,12 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
             throttle_ms=int(self.options.throttle or 500),
         )
 
+        # Start SUT BEFORE setUpClass — properties' setUpClass often taps home/dismiss
+        # dialogs; if it runs pre-launch, cls.d works but UI is still launcher/other app
+        # → T0 preconds never match (amap pi-pbt: executed_total=0).
+        explorer.init(options=self.options, stamp=stamp_manager.stamp)
         for t in {**self.allProperties, **self.allInvariants}.values():
             self.setUpClass(t)
-
-        explorer.init(options=self.options, stamp=stamp_manager.stamp)
         result.flushResult()
         start_time = perf_counter()
         self.stepsCount = 0
