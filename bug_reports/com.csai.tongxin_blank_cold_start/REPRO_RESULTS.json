@@ -1,0 +1,181 @@
+{
+  "package": "com.csai.tongxin",
+  "version": "1.0.1",
+  "device": "5SM0125606000291",
+  "ability": "EntryAbility",
+  "n_trials": 15,
+  "wait_after_start_s": 10,
+  "blank_threshold_white_frac": 0.92,
+  "blank_count": 7,
+  "blank_rate": "7/15",
+  "blank_rate_pct": 46.7,
+  "ts": "2026-07-20T10:00:46.666345+00:00",
+  "method": "aa force-stop; aa start -a EntryAbility -b PKG; sleep WAIT; screenCap; white_frac of downscaled RGB",
+  "trials": [
+    {
+      "trial": 0,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.3741,
+      "mean_pixel": 217.74,
+      "foreground": true,
+      "blank_bug": false,
+      "start_ok": true,
+      "screenshot": "trial_00.png"
+    },
+    {
+      "trial": 1,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.3741,
+      "mean_pixel": 217.74,
+      "foreground": true,
+      "blank_bug": false,
+      "start_ok": true,
+      "screenshot": "trial_01.png"
+    },
+    {
+      "trial": 2,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.3741,
+      "mean_pixel": 217.74,
+      "foreground": true,
+      "blank_bug": false,
+      "start_ok": true,
+      "screenshot": "trial_02.png"
+    },
+    {
+      "trial": 3,
+      "wait_s": 10,
+      "elapsed_s": 10.01,
+      "white_frac": 0.9854,
+      "mean_pixel": 254.22,
+      "foreground": true,
+      "blank_bug": true,
+      "start_ok": true,
+      "screenshot": "trial_03.png"
+    },
+    {
+      "trial": 4,
+      "wait_s": 10,
+      "elapsed_s": 10.01,
+      "white_frac": 0.9856,
+      "mean_pixel": 254.23,
+      "foreground": true,
+      "blank_bug": true,
+      "start_ok": true,
+      "screenshot": "trial_04.png"
+    },
+    {
+      "trial": 5,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.3741,
+      "mean_pixel": 217.75,
+      "foreground": true,
+      "blank_bug": false,
+      "start_ok": true,
+      "screenshot": "trial_05.png"
+    },
+    {
+      "trial": 6,
+      "wait_s": 10,
+      "elapsed_s": 10.01,
+      "white_frac": 0.9856,
+      "mean_pixel": 254.22,
+      "foreground": true,
+      "blank_bug": true,
+      "start_ok": true,
+      "screenshot": "trial_06.png"
+    },
+    {
+      "trial": 7,
+      "wait_s": 10,
+      "elapsed_s": 10.01,
+      "white_frac": 0.3741,
+      "mean_pixel": 217.74,
+      "foreground": true,
+      "blank_bug": false,
+      "start_ok": true,
+      "screenshot": "trial_07.png"
+    },
+    {
+      "trial": 8,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.3741,
+      "mean_pixel": 217.74,
+      "foreground": true,
+      "blank_bug": false,
+      "start_ok": true,
+      "screenshot": "trial_08.png"
+    },
+    {
+      "trial": 9,
+      "wait_s": 10,
+      "elapsed_s": 10.01,
+      "white_frac": 0.3741,
+      "mean_pixel": 217.74,
+      "foreground": true,
+      "blank_bug": false,
+      "start_ok": true,
+      "screenshot": "trial_09.png"
+    },
+    {
+      "trial": 10,
+      "wait_s": 10,
+      "elapsed_s": 10.01,
+      "white_frac": 0.9854,
+      "mean_pixel": 254.21,
+      "foreground": true,
+      "blank_bug": true,
+      "start_ok": true,
+      "screenshot": "trial_10.png"
+    },
+    {
+      "trial": 11,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.9854,
+      "mean_pixel": 254.22,
+      "foreground": true,
+      "blank_bug": true,
+      "start_ok": true,
+      "screenshot": "trial_11.png"
+    },
+    {
+      "trial": 12,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.9854,
+      "mean_pixel": 254.21,
+      "foreground": true,
+      "blank_bug": true,
+      "start_ok": true,
+      "screenshot": "trial_12.png"
+    },
+    {
+      "trial": 13,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.9854,
+      "mean_pixel": 254.21,
+      "foreground": true,
+      "blank_bug": true,
+      "start_ok": true,
+      "screenshot": "trial_13.png"
+    },
+    {
+      "trial": 14,
+      "wait_s": 10,
+      "elapsed_s": 10.0,
+      "white_frac": 0.3741,
+      "mean_pixel": 217.74,
+      "foreground": true,
+      "blank_bug": false,
+      "start_ok": true,
+      "screenshot": "trial_14.png"
+    }
+  ]
+}
