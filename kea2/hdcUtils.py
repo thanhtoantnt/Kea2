@@ -90,12 +90,76 @@ class HDCDevice:
     def force_stop(self, package: str) -> None:
         self.shell(f"aa force-stop {package}")
 
+    def unlock(self) -> None:
+        """Wake + swipe up (Kea DeviceHM.unlock is Home/Back only — not enough on lock)."""
+        self.shell("power-shell wakeup")
+        self.shell("uitest uiInput swipe 640 2400 640 400 400")
+
+    def resolve_main_ability(self, package: str) -> Optional[str]:
+        """mainAbility from `bm dump -n` (same idea as Kea AppHM._dumpsys_package_info)."""
+        out = self.shell(f"bm dump -n {package}")
+        if not out:
+            return None
+        # prefer JSON hapModuleInfos[].mainAbility
+        start = out.find("{")
+        if start >= 0:
+            try:
+                import json
+
+                data = json.loads(out[start:])
+                haps = data.get("hapModuleInfos") or []
+                # entry module first if present
+                entry = data.get("entryModuleName")
+                ordered = sorted(
+                    haps,
+                    key=lambda h: 0 if (h.get("name") or h.get("moduleName")) == entry else 1,
+                ) if isinstance(haps, list) else []
+                for h in ordered:
+                    if not isinstance(h, dict):
+                        continue
+                    ab = h.get("mainAbility") or h.get("mainElement")
+                    if ab:
+                        return str(ab)
+            except Exception as e:
+                logger.debug(f"bm dump JSON parse failed for {package}: {e}")
+        m = re.search(r'"mainAbility"\s*:\s*"([^"]+)"', out)
+        return m.group(1) if m else None
+
+    def get_top_ability(self) -> Optional[str]:
+        """bundle/ability of FOREGROUND mission (Kea DeviceHM.get_top_activity_name)."""
+        out = self.shell("aa dump -l")
+        if "#FOREGROUND" not in out and "state #FOREGROUND" not in out:
+            return None
+        for block in out.split("Mission ID"):
+            if "state #FOREGROUND" not in block:
+                continue
+            m = re.search(
+                r"mission name #\[#(?P<bundle>[^:]+):[^:]*:(?P<ability>[^\]]+)\]",
+                block,
+            )
+            if m:
+                return f"{m.group('bundle')}/{m.group('ability')}"
+            # fallback: bundle name + main name fields
+            b = re.search(r"bundle name \[([^\]]+)\]", block)
+            a = re.search(r"main name \[([^\]]+)\]", block)
+            if b and a:
+                return f"{b.group(1)}/{a.group(1)}"
+        return None
+
     def start_ability(self, package: str, ability: str = "EntryAbility") -> str:
-        # PBT_KEA_ABILITY overrides; else try common system-app ability names.
+        # Order: env → bm-dump mainAbility → caller → common fallbacks (Kea-style).
         env_ab = os.environ.get("PBT_KEA_ABILITY")
-        # ponytail: short fallback list; system HAPs rarely export EntryAbility
+        discovered = self.resolve_main_ability(package)
         candidates = []
-        for a in (env_ab, ability, "MainAbility", f"{package}.phone", f"{package}.MainAbility"):
+        for a in (
+            env_ab,
+            discovered,
+            ability,
+            "EntryAbility",
+            "MainAbility",
+            f"{package}.phone",
+            f"{package}.MainAbility",
+        ):
             if a and a not in candidates:
                 candidates.append(a)
         last = ""
@@ -109,6 +173,7 @@ class HDCDevice:
                 _time.sleep(0.4)
             return False
 
+        self.unlock()
         for a in candidates:
             out = self.shell(f"aa start -a {a} -b {package}")
             last = out
@@ -116,11 +181,12 @@ class HDCDevice:
             if not ok and ("failed to start" in out.lower() or "error" in out.lower()):
                 continue
             if _wait_fg():
+                if discovered and a == discovered:
+                    logger.info(f"Started {package} via bm-dump ability {a!r}")
                 return out
             logger.warning(f"{package}/{a} started but not FOREGROUND; try next")
-        # wake + swipe unlock once, retry first candidate (never Power — toggles screen off)
-        self.shell("power-shell wakeup")
-        self.shell("uitest uiInput swipe 540 2000 540 400 300")
+        # second unlock + first candidate
+        self.unlock()
         out = self.shell(f"aa start -a {candidates[0]} -b {package}") or last
         if not _wait_fg(timeout_s=4.0):
             logger.warning(f"{package} still not FOREGROUND after launch attempts")
@@ -132,6 +198,9 @@ class HDCDevice:
 
     def is_package_foreground(self, package: str) -> bool:
         # True iff <package> mission is FOREGROUND (per-block, not whole dump).
+        top = self.get_top_ability()
+        if top and top.startswith(package + "/"):
+            return True
         out = self.shell("aa dump -l")
         needle = f"bundle name [{package}]"
         for block in out.split("Mission ID"):
