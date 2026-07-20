@@ -35,6 +35,16 @@ def _match_node(node: dict, selectors: dict) -> bool:
     for k, v in selectors.items():
         if v is None:
             continue
+        # substring match (multiline tab labels: "部门\n第 1 个标签…")
+        if k in ("textContains", "textMatches"):
+            # ponytail: textMatches treated as contains; full regex if needed later
+            if str(v) not in str(a.get("text") or ""):
+                return False
+            continue
+        if k in ("descriptionContains", "descContains"):
+            if str(v) not in str(a.get("description") or ""):
+                return False
+            continue
         # map common aliases
         key = k
         if k == "resourceId":
@@ -194,14 +204,29 @@ class HMDevice:
 
     def _live_obj(self, selectors: dict):
         # hmdriver2 uses same keyword style: text=, id=, description=, type=
+        # textContains is hierarchy-only — resolve to exact text via dump first.
         kw = {}
         for k, v in selectors.items():
+            if k in ("textContains", "textMatches", "descriptionContains", "descContains"):
+                continue
             if k == "resourceId":
                 kw["id"] = v
             elif k == "className":
                 kw["type"] = v
             else:
                 kw[k] = v
+        if not kw and any(k in selectors for k in ("textContains", "textMatches", "descriptionContains", "descContains")):
+            # fill exact text from hierarchy so hmdriver2 can still match
+            try:
+                self.dump_hierarchy()
+                node = self._find_first(selectors)
+                if node is not None:
+                    t = str(_attrs(node).get("text") or "")
+                    d = str(_attrs(node).get("description") or "")
+                    if t: kw["text"] = t
+                    elif d: kw["description"] = d
+            except Exception:
+                pass
         return self._hm(**kw)
 
     def _live_click(self, selectors: dict, retries: int = 3):
