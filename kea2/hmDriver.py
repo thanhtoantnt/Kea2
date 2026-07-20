@@ -71,18 +71,26 @@ class HMUiObject:
         self.selectors = selectors
 
     def exists(self, timeout: float = 0) -> bool:
-        # Static hierarchy (precondition checker) OR live hmdriver2.
-        deadline = time.time() + max(0, float(timeout or 0))
+        # Prefer in-memory hierarchy match. Live hmdriver2 .exists() retries for
+        # seconds per miss — kills setUpClass dismiss loops and precond scans.
+        # timeout==0 → one dump + match, no live retry storm.
+        if self.driver._hierarchy is not None:
+            return self.driver._find_first(self.selectors) is not None
+        timeout = max(0.0, float(timeout or 0))
+        if timeout == 0:
+            try:
+                self.driver.dump_hierarchy()
+                return self.driver._find_first(self.selectors) is not None
+            except Exception:
+                return False
+        deadline = time.time() + timeout
         while True:
-            if self.driver._hierarchy is not None:
+            try:
+                self.driver.dump_hierarchy()
                 if self.driver._find_first(self.selectors) is not None:
                     return True
-            else:
-                try:
-                    if self.driver._live_obj(self.selectors).exists():
-                        return True
-                except Exception:
-                    pass
+            except Exception:
+                pass
             if time.time() >= deadline:
                 return False
             time.sleep(0.2)

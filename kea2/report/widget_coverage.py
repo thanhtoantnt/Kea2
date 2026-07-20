@@ -48,10 +48,15 @@ class WidgetCoverage:
     @property
     def all_activities(self) -> Set[str]:
         if self._all_activities is None:
-            with open(self.output_dir / "coverage.log") as f:
-                line = f.readline()
-                data = json.loads(line)
-                self._all_activities = set(data["totalActivities"])
+            cov = self.output_dir / "coverage.log"
+            if cov.exists():
+                with open(cov) as f:
+                    line = f.readline()
+                    data = json.loads(line) if line.strip() else {}
+                    self._all_activities = set(data.get("totalActivities") or [])
+            else:
+                # HarmonyOS / incomplete runs: no Fastbot coverage.log
+                self._all_activities = set()
         return self._all_activities
                 
 

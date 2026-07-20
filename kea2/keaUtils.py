@@ -707,12 +707,26 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                 propertyName = random.choice(checkableProperties)
                 prop_test = self.allProperties[propertyName]
                 result.addExcutedProperty(prop_test, self.stepsCount)
+                explorer.log_script_info(
+                    propertyName, "start", "property", steps=self.stepsCount
+                )
                 setattr(prop_test, self.options.driverName, self.scriptDriver)
                 try:
                     prop_test(result)
                 finally:
                     result.printError(prop_test)
                 result.updateExecutionInfo(prop_test)
+                # mirror property_exec_info state into steps.log for HTML report
+                state = "pass"
+                try:
+                    info = getattr(result, "lastPropertyInfo", None)
+                    if info is not None and getattr(info, "state", None):
+                        state = info.state
+                except Exception:
+                    pass
+                explorer.log_script_info(
+                    propertyName, state, "property", steps=self.stepsCount
+                )
                 explorer.executed_prop = True
                 result.flushResult()
         except KeyboardInterrupt:

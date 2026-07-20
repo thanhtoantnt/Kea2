@@ -566,16 +566,30 @@ class BugReportGenerator(CrashAnrMixin, PathParserMixin, ScreenshotsMixin):
         # Format timestamp for display
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Ensure coverage_trend has data
+        # Ensure coverage_trend has data + required template keys
         if not data.get("coverage_trend"):
             logger.warning("No coverage trend data")
-            # Use the same field names as in coverage.log file
-            data["coverage_trend"] = [{"stepsCount": 0, "coverage": 0, "testedActivitiesCount": 0}]
+            data["coverage_trend"] = [{
+                "stepsCount": 0,
+                "coverage": 0,
+                "testedActivitiesCount": 0,
+                "totalActivitiesCount": 0,
+                "totalActivities": [],
+                "testedActivities": [],
+                "activityCountHistory": {},
+            }]
+        data.setdefault("coverage", 0)
+        data.setdefault("total_activities_count", 0)
+        data.setdefault("tested_activities_count", 0)
+        data.setdefault("total_activities", [])
+        data.setdefault("tested_activities", [])
+        data.setdefault("activity_count_history", {})
 
         # Ensure widget_coverage_trend has data
         if not data.get("widget_coverage_trend"):
             logger.warning("No widget coverage trend data")
             data["widget_coverage_trend"] = [{"stepsCount": 0, "coverage": 0}]
+        data.setdefault("widget_coverage_count", 0)
 
         # Convert coverage_trend to JSON string, ensuring all data points are included
         coverage_trend_json = json.dumps(data["coverage_trend"])

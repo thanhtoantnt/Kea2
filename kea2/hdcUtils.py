@@ -99,28 +99,42 @@ class HDCDevice:
             if a and a not in candidates:
                 candidates.append(a)
         last = ""
+        import time as _time
+
+        def _wait_fg(timeout_s: float = 3.0) -> bool:
+            deadline = _time.time() + timeout_s
+            while _time.time() < deadline:
+                if self.is_package_foreground(package):
+                    return True
+                _time.sleep(0.4)
+            return False
+
         for a in candidates:
             out = self.shell(f"aa start -a {a} -b {package}")
             last = out
-            if "start ability successfully" in out.lower():
+            ok = "start ability successfully" in out.lower()
+            if not ok and ("failed to start" in out.lower() or "error" in out.lower()):
+                continue
+            if _wait_fg():
                 return out
-            if "failed to start" not in out.lower() and "error" not in out.lower():
-                return out
-        # wake + swipe once, retry first candidate
-        self.shell("uitest uiInput keyEvent Power")
+            logger.warning(f"{package}/{a} started but not FOREGROUND; try next")
+        # wake + swipe unlock once, retry first candidate (never Power — toggles screen off)
+        self.shell("power-shell wakeup")
         self.shell("uitest uiInput swipe 540 2000 540 400 300")
-        return self.shell(f"aa start -a {candidates[0]} -b {package}") or last
+        out = self.shell(f"aa start -a {candidates[0]} -b {package}") or last
+        if not _wait_fg(timeout_s=4.0):
+            logger.warning(f"{package} still not FOREGROUND after launch attempts")
+        return out
 
     def package_installed(self, package: str) -> bool:
         out = self.shell("bm dump -a")
         return package in out
 
     def is_package_foreground(self, package: str) -> bool:
-        # True iff <package> is the FOREGROUND ability (aa dump -l). HarmonyOS
-        # lets the on-screen IME (com.huawei.hmos.inputmethod) or another app
-        # steal foreground mid-run when the explorer taps a text field / notification;
-        # then the explorer drives the IME, not the SUT, and preconditions never match
-        # (contacts: 2/3 properties ended not_checked this way). The harmony loop
-        # uses this to relaunch the SUT before the step is wasted on the wrong app.
+        # True iff <package> mission is FOREGROUND (per-block, not whole dump).
         out = self.shell("aa dump -l")
-        return f"bundle name [{package}]" in out and "state #FOREGROUND" in out.replace("\n", " ")
+        needle = f"bundle name [{package}]"
+        for block in out.split("Mission ID"):
+            if needle in block and "state #FOREGROUND" in block:
+                return True
+        return False
