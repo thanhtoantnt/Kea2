@@ -96,11 +96,12 @@ class HMUiObject:
             time.sleep(0.2)
 
     def click(self):
-        # Always prefer live click with retry. Static hierarchy is often stale
-        # between precondition check and body (explorer/tab animation) — clicking
-        # stale bounds or a disappeared node raised ElementNotFoundError (calendar
-        # Week-tab race: 1 error / 7 exec). Live-refresh + short retry kills that.
-        return self.driver._live_click(self.selectors, retries=3)
+        # Bounds-first live click + post-click settle. Multi-click nav races
+        # (music Me roundtrip, maps POI close) were ElementNotFound between
+        # precond dump and hmdriver2 selector resolve — or next click too soon.
+        r = self.driver._live_click(self.selectors, retries=3)
+        time.sleep(0.35)  # ponytail: global settle; per-prop sleep if still flaky
+        return r
 
     def set_text(self, text: str):
         return self.driver._live_set_text(self.selectors, text)
@@ -204,11 +205,22 @@ class HMDevice:
         return self._hm(**kw)
 
     def _live_click(self, selectors: dict, retries: int = 3):
-        # Fresh live query each attempt; brief settle between retries so tab
-        # animations finish (calendar Week ElementNotFound race).
+        # Prefer dump→bounds→coordinate tap: survives selector index churn and
+        # mid-animation hmdriver2 misses better than bare obj.click().
         last = None
         for i in range(max(1, retries)):
             try:
+                try:
+                    self.dump_hierarchy()
+                    node = self._find_first(selectors)
+                    if node is not None:
+                        bounds = _parse_bounds(_attrs(node).get("bounds"))
+                        if bounds:
+                            x = (bounds[0] + bounds[2]) // 2
+                            y = (bounds[1] + bounds[3]) // 2
+                            return self._click_xy(x, y)
+                except Exception as e:
+                    last = e
                 obj = self._live_obj(selectors)
                 return obj.click()
             except Exception as e:
@@ -216,7 +228,7 @@ class HMDevice:
                 name = type(e).__name__
                 if "ElementNotFound" not in name and "NotFound" not in name:
                     raise
-                time.sleep(0.4)
+                time.sleep(0.5)
         if last is not None:
             raise last
 
