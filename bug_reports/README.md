@@ -39,3 +39,7 @@ Each folder has `BUG_REPORT.md` and a `repro_*.sh` where applicable.
 - Unlocked screen
 
 Agent/`pi-pbt` is **not** required to reproduce these results.
+
+### Maps Discover H5
+
+| load error trap | Discover rankings H5 | [com.huawei.hmos.maps_discover_h5_load_error](./com.huawei.hmos.maps_discover_h5_load_error/) |
