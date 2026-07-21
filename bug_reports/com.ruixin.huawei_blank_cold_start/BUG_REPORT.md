@@ -86,3 +86,7 @@ Machine JSON: `COLD_START.json`
 
 - Kea2 Harmony path + `pbt-agent` `cold-start-probe.sh`
 - Device unlocked, USB `hdc`
+
+
+## Reprobe
+Second lab run: **5/10 (50%)** blank @10s (same device/build). Confirms intermittent, not one-shot flake.
