@@ -110,7 +110,7 @@ class HMUiObject:
         # (music Me roundtrip, maps POI close) were ElementNotFound between
         # precond dump and hmdriver2 selector resolve — or next click too soon.
         r = self.driver._live_click(self.selectors, retries=3)
-        time.sleep(0.35)  # ponytail: global settle; per-prop sleep if still flaky
+        time.sleep(0.5)  # ponytail: global settle; was 0.35 — maoyan cold first-click flake
         return r
 
     def set_text(self, text: str):
@@ -190,6 +190,23 @@ class HMDevice:
             time.sleep(0.45)
         self._hierarchy = h
         return self._hierarchy
+
+    def app_current(self) -> dict:
+        """Minimal parity with uiautomator2 — package currently FOREGROUND via aa dump."""
+        import subprocess, re
+        try:
+            raw = subprocess.check_output(
+                f'hdc -t {self.serial} shell "aa dump -l"',
+                shell=True, text=True, timeout=15, stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            return {"package": None, "activity": None}
+        for b in raw.split("Mission ID"):
+            if "#FOREGROUND" in b:
+                m = re.search(r"bundle name \[([^\]]+)\]", b)
+                a = re.search(r"main name \[([^\]]+)\]", b)
+                return {"package": m.group(1) if m else None, "activity": a.group(1) if a else None}
+        return {"package": None, "activity": None}
 
     def __call__(self, **kwargs) -> HMUiObject:
         return HMUiObject(self, kwargs)
