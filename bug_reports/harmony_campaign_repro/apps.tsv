@@ -1,0 +1,7 @@
+# name	package	prop_file	min_exec	lab_status	notes
+maoyan	com.maoyan.hmovie	prop_maoyan.py	10	ran_ok	T0 首页/我的/演出
+wps	cn.wps.mobileoffice.hap	prop_wps.py	8	ran_ok	T0 首页/我/云盘
+taobaomovie	com.taobao.movie.hongmeng	prop_taobaomovie.py	10	ran_ok	T0 首页/我的/影院; may need city pick
+husky	com.yuantiku.husky.hos	prop_husky.py	8	ran_ok	T0 首页 + 科目
+meitanjianghu	com.meitanjianghu.mtjh	prop_meitanjianghu.py	10	ran_ok	T0 首页/我的
+qunar	com.qunar.hos	prop_qunar.py	10	ran_ok	T0 首页/我的/行程
