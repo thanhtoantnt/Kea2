@@ -118,9 +118,65 @@ class HarmonyExplorer:
             logger.info(f"Starting {pkg}")
             self.hdc.start_ability(pkg)
 
+    def _sut_fg(self) -> bool:
+        return any(self.hdc.is_package_foreground(p) for p in self.packages) if self.packages else True
+
+    def _content_texts(self, h: dict) -> List[str]:
+        out: List[str] = []
+        for node in _walk_nodes(h or {}):
+            t = str(_attrs(node).get("text") or "").strip()
+            if not t or t.startswith("file://"):
+                continue
+            if _TIME_RE.match(t) or _BATTERY_RE.match(t):
+                continue
+            if t not in out:
+                out.append(t)
+        return out
+
+    def _looks_launcherish(self, h: dict) -> bool:
+        """True if dump is OS home/recents, not the SUT window."""
+        if not self.packages:
+            return False
+        if not self._sut_fg():
+            return True
+        texts = self._content_texts(h)
+        # Recent-apps strip often shows other app names while SUT is not really focused.
+        launcher_markers = ("美柚", "通信工程师考试", "AppGallery", "设置", "Settings", "Books", "Wallet")
+        hit = sum(1 for t in texts if t in launcher_markers)
+        if hit >= 2 and len(texts) <= 12:
+            return True
+        # Very empty dump while claiming FG — often mid-transition
+        if len(texts) <= 2:
+            return True
+        return False
+
+    def dump_sut_hierarchy(self) -> dict:
+        """Dump hierarchy while SUT is FOREGROUND; relaunch if dump is launcherish."""
+        last: dict = {}
+        for attempt in range(4):
+            if not self._sut_fg():
+                logger.info(f"[Harmony] SUT not FOREGROUND (try {attempt}); start_apps")
+                self.start_apps()
+                time.sleep(2.0)
+            last = self.d.dump_hierarchy() or {}
+            texts = self._content_texts(last)
+            if self._sut_fg() and not self._looks_launcherish(last):
+                return last
+            logger.warning(
+                f"[Harmony] weak/launcher hierarchy try={attempt} "
+                f"fg={self._sut_fg()} texts={len(texts)} sample={texts[:8]!r}; relaunch"
+            )
+            self.start_apps()
+            time.sleep(2.0)
+        return last or self.d.dump_hierarchy() or {}
+
     def dumpHierarchy(self) -> str:
-        h = self.d.dump_hierarchy()
+        h = self.dump_sut_hierarchy()
         return json.dumps(h, ensure_ascii=False)
+
+    def dump_for_props(self) -> str:
+        """Hierarchy for precondition check — no explore tap."""
+        return self.dumpHierarchy()
 
     def _ensure_steps_log(self):
         if self._steps_log is not None:
@@ -205,9 +261,9 @@ class HarmonyExplorer:
         )
 
     def stepMonkey(self, _info: Optional[dict] = None) -> str:
-        """One random exploration step; return hierarchy JSON string."""
+        """One random exploration step; return hierarchy JSON string (SUT FG)."""
         self._steps += 1
-        h = self.d.dump_hierarchy()
+        h = self.dump_sut_hierarchy()
         cands = _clickable_candidates(h)
         if cands:
             cx, cy, x1, y1, x2, y2, label, typ = random.choice(cands)
@@ -223,7 +279,8 @@ class HarmonyExplorer:
             self.log_monkey("SCROLL", [540, 1800, 540, 600], label="swipe", typ="swipe")
         if self.throttle:
             time.sleep(self.throttle)
-        h2 = self.d.dump_hierarchy()
+        # Taps (esp. after hmdriver reconnect) can drop SUT; re-grab before precond dump.
+        h2 = self.dump_sut_hierarchy()
         return json.dumps(h2, ensure_ascii=False)
 
     def stopMonkey(self):

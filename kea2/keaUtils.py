@@ -674,13 +674,14 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                     self.stepsCount += 1
                     continue
 
+                # Harmony: CHECK properties on current UI FIRST, then explore.
+                # Android Fastbot explores-then-checks; on dense feeds that immediately
+                # opens detail/login (meitanjianghu 速递→详情→登录), T0 home preconds
+                # never match → executed_total=0. Dump-first fixes that.
+                self.stepsCount += 1
                 if explorer.executed_prop:
                     explorer.executed_prop = False
-                    self.stepsCount += 1
-                    hierarchy_raw = explorer.dumpHierarchy()
-                else:
-                    self.stepsCount += 1
-                    hierarchy_raw = explorer.stepMonkey(None)
+                hierarchy_raw = explorer.dump_for_props()
 
                 if not hierarchy_raw:
                     logger.warning("Empty hierarchy; skip step.")
@@ -701,6 +702,23 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                     hierarchy_raw, result, staticCheckerDriver
                 )
                 if not checkableProperties:
+                    try:
+                        import json as _json
+                        _h = _json.loads(hierarchy_raw) if isinstance(hierarchy_raw, str) else hierarchy_raw
+                        from .hmDriver import _walk_nodes, _attrs
+                        _texts = []
+                        for _n in _walk_nodes(_h or {}):
+                            _t = str(_attrs(_n).get("text") or "").strip()
+                            if _t and _t not in _texts:
+                                _texts.append(_t)
+                        logger.info(
+                            f"0 Checkable property. fg_sample_texts={_texts[:12]!r} "
+                            f"n_texts={len(_texts)} — explore one step"
+                        )
+                    except Exception:
+                        logger.info("0 Checkable property — explore one step")
+                    # No prop to run: advance UI via monkey (may leave home).
+                    explorer.stepMonkey(None)
                     continue
 
                 # live driver for property body
@@ -718,6 +736,8 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                 finally:
                     result.printError(prop_test)
                 result.updateExecutionInfo(prop_test)
+                explorer.executed_prop = True
+                result.flushResult()
                 # mirror property_exec_info state into steps.log for HTML report
                 state = "pass"
                 try:
