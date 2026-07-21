@@ -48,6 +48,10 @@ def _is_noise(label: str, typ: str, y1: int, cy: int) -> bool:
         return True
     if label.lower().startswith("double tap"):  # a11y chrome
         return True
+    # H5 error chrome (Maps Discover rankings) — don't thrash Retry
+    low = label.lower()
+    if "loading error" in low or low in ("retry", "reload"):
+        return True
     return False
 
 
@@ -264,6 +268,16 @@ class HarmonyExplorer:
         """One random exploration step; return hierarchy JSON string (SUT FG)."""
         self._steps += 1
         h = self.dump_sut_hierarchy()
+        # Escape broken H5 error pages (Maps Discover rankings trap)
+        texts = " ".join(self._content_texts(h)).lower()
+        if "loading error" in texts or ("retry" in texts and "h5" in texts):
+            logger.info("[Harmony] H5 load-error surface — keyEvent Back")
+            try:
+                self.hdc.shell("uitest uiInput keyEvent Back")
+            except Exception:
+                pass
+            time.sleep(0.6)
+            h = self.dump_sut_hierarchy()
         cands = _clickable_candidates(h)
         if cands:
             cx, cy, x1, y1, x2, y2, label, typ = random.choice(cands)
