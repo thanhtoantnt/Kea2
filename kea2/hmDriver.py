@@ -173,13 +173,22 @@ class HMDevice:
             self._hierarchy = None
 
     def dump_hierarchy(self) -> dict:
-        h = self._hm.dump_hierarchy()
-        if isinstance(h, str):
-            try:
-                h = json.loads(h)
-            except json.JSONDecodeError:
-                h = {}
-        self._hierarchy = h if isinstance(h, dict) else {}
+        # uitest sometimes returns empty/invalid JSON mid-transition (quark blank,
+        # app switch). Retry before treating as empty tree.
+        h: dict = {}
+        for attempt in range(3):
+            raw = self._hm.dump_hierarchy()
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except json.JSONDecodeError:
+                    raw = {}
+            h = raw if isinstance(raw, dict) else {}
+            if h and (h.get("children") or h.get("attributes")):
+                break
+            logger.warning(f"empty hierarchy dump try={attempt}; retry")
+            time.sleep(0.45)
+        self._hierarchy = h
         return self._hierarchy
 
     def __call__(self, **kwargs) -> HMUiObject:
