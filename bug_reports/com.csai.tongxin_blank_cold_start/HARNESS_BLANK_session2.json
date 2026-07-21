@@ -1,0 +1,56 @@
+{
+  "n": 8,
+  "wait": 10,
+  "rows": [
+    {
+      "trial": 0,
+      "white": 0.9855550130208334,
+      "fg": true,
+      "blank": true
+    },
+    {
+      "trial": 1,
+      "white": 0.3741048177083333,
+      "fg": true,
+      "blank": false
+    },
+    {
+      "trial": 2,
+      "white": 0.3741048177083333,
+      "fg": true,
+      "blank": false
+    },
+    {
+      "trial": 3,
+      "white": 0.3741048177083333,
+      "fg": true,
+      "blank": false
+    },
+    {
+      "trial": 4,
+      "white": 0.3741048177083333,
+      "fg": true,
+      "blank": false
+    },
+    {
+      "trial": 5,
+      "white": 0.9854329427083334,
+      "fg": true,
+      "blank": true
+    },
+    {
+      "trial": 6,
+      "white": 0.9854329427083334,
+      "fg": true,
+      "blank": true
+    },
+    {
+      "trial": 7,
+      "white": 0.3741048177083333,
+      "fg": true,
+      "blank": false
+    }
+  ],
+  "blank": 3,
+  "ts": "2026-07-21T01:19:39.574242+00:00"
+}
