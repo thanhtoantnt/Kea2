@@ -43,3 +43,7 @@ Agent/`pi-pbt` is **not** required to reproduce these results.
 ### Maps Discover H5
 
 | load error trap | Discover rankings H5 | [com.huawei.hmos.maps_discover_h5_load_error](./com.huawei.hmos.maps_discover_h5_load_error/) |
+
+### 掌上西湖 consent stuck
+
+| 同意并继续 no-op | privacy gate never dismisses | [com.jxrmdn.zsxh.hs_consent_agree_stuck](./com.jxrmdn.zsxh.hs_consent_agree_stuck/) |
