@@ -47,3 +47,8 @@ Agent/`pi-pbt` is **not** required to reproduce these results.
 ### 掌上西湖 consent stuck
 
 | 同意并继续 no-op | privacy gate never dismisses | [com.jxrmdn.zsxh.hs_consent_agree_stuck](./com.jxrmdn.zsxh.hs_consent_agree_stuck/) |
+
+## HMOS smokes (xai-oauth/grok-4)
+- `com.huawei.hmos.photos_blank_cold_start/` — from photos
+- `com.huawei.hmos.myhuawei_cold_start_jscrash/` — from myhuawei
+- `com.huawei.hmos.ailife_js_crash_mainpage/` — from ailife

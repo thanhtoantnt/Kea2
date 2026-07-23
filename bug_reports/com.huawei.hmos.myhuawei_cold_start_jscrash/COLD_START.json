@@ -1,0 +1,78 @@
+{
+  "package": "com.huawei.hmos.myhuawei",
+  "device": "5SM0125606000291",
+  "trials": 8,
+  "alive_count": 0,
+  "dead_count": 8,
+  "crash_rate": 1.0,
+  "results": [
+    {
+      "trial": 0,
+      "aa_start": "start ability successfully.",
+      "process_alive": false,
+      "fg_heuristic": false,
+      "latest_fault": "jscrash-com.huawei.hmos.myhuawei-20020079-20260723133204416.log",
+      "dt": 4.1
+    },
+    {
+      "trial": 1,
+      "aa_start": "start ability successfully.",
+      "process_alive": false,
+      "fg_heuristic": false,
+      "latest_fault": "jscrash-com.huawei.hmos.myhuawei-20020079-20260723133206920.log",
+      "dt": 3.53
+    },
+    {
+      "trial": 2,
+      "aa_start": "start ability successfully.",
+      "process_alive": false,
+      "fg_heuristic": false,
+      "latest_fault": "jscrash-com.huawei.hmos.myhuawei-20020079-20260723133211101.log",
+      "dt": 3.55
+    },
+    {
+      "trial": 3,
+      "aa_start": "start ability successfully.",
+      "process_alive": false,
+      "fg_heuristic": false,
+      "latest_fault": "jscrash-com.huawei.hmos.myhuawei-20020079-20260723133215401.log",
+      "dt": 3.52
+    },
+    {
+      "trial": 4,
+      "aa_start": "start ability successfully.",
+      "process_alive": false,
+      "fg_heuristic": false,
+      "latest_fault": "jscrash-com.huawei.hmos.myhuawei-20020079-20260723133219688.log",
+      "dt": 3.54
+    },
+    {
+      "trial": 5,
+      "aa_start": "start ability successfully.",
+      "process_alive": false,
+      "fg_heuristic": false,
+      "latest_fault": "jscrash-com.huawei.hmos.myhuawei-20020079-20260723133223714.log",
+      "dt": 3.57
+    },
+    {
+      "trial": 6,
+      "aa_start": "start ability successfully.",
+      "process_alive": false,
+      "fg_heuristic": false,
+      "latest_fault": "jscrash-com.huawei.hmos.myhuawei-20020079-20260723133228037.log",
+      "dt": 3.55
+    },
+    {
+      "trial": 7,
+      "aa_start": "start ability successfully.",
+      "process_alive": false,
+      "fg_heuristic": false,
+      "latest_fault": "jscrash-com.huawei.hmos.myhuawei-20020079-20260723133232393.log",
+      "dt": 3.57
+    }
+  ],
+  "error": "TypeError: Cannot read property TOUCH of undefined",
+  "stack": "MaterialOptions / HdsStyle @ entry|ui_components|1.0.0|src/main/ets/common/u18/o40.ts",
+  "version": "20.126.6.301 (2012606301)",
+  "build": "SGT-AL00 6.1.0.21TW(C00E21R2P3log)"
+}
