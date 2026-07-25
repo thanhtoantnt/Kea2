@@ -118,6 +118,27 @@ class HMUiObject:
         self.driver._settle_after_action(prev_fp=prev, timeout=float(settle or 0))
         return r
 
+    def click_then(self, *assert_texts: str, timeout: float = 2.0, settle: float = 1.2) -> bool:
+        """Click, then poll until any assert text exists. Raises AssertionError on miss."""
+        self.click(settle=settle)
+        deadline = time.time() + max(0.0, float(timeout or 0))
+        wanted = [x for x in assert_texts if x]
+        if not wanted:
+            return True
+        while True:
+            try:
+                self.driver.dump_hierarchy()
+            except Exception:
+                pass
+            for txt in wanted:
+                if self.driver(text=txt).exists(timeout=0):
+                    return True
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"after click {self.selectors}: none of {wanted!r} within {timeout}s"
+                )
+            time.sleep(0.2)
+
     def set_text(self, text: str):
         return self.driver._live_set_text(self.selectors, text)
 
@@ -224,14 +245,58 @@ class HMDevice:
         # only when the random explorer happens to tap them.
         return self._click_xy(x, y)
 
-    def _find_first(self, selectors: dict) -> Optional[dict]:
+    def _find_all(self, selectors: dict) -> List[dict]:
         root = self._hierarchy
         if root is None:
+            return []
+        return [n for n in _walk_nodes(root) if _match_node(n, selectors)]
+
+    def _click_rank(self, node: dict) -> int:
+        """Higher = better click target when multiple nodes share text=.
+
+        Music: text=Me/Home also in feed/sheets — prefer id=tab_text / bottom band.
+        Calendar: tabs_year etc. near top chrome.
+        """
+        a = _attrs(node)
+        nid = str(a.get("id") or "")
+        typ = str(a.get("type") or "")
+        bounds = _parse_bounds(a.get("bounds"))
+        cy = ((bounds[1] + bounds[3]) // 2) if bounds else 0
+        idl = nid.lower()
+        score = 0
+        if nid == "tab_text" or idl.startswith("tabs_") or idl.endswith("_tab_text"):
+            score += 100
+        if "tab_text" in idl or ("tab" in idl and "tabs" in idl):
+            score += 40
+        if typ in ("Tabs", "TabBar") or "tabbar" in idl:
+            score += 30
+        if cy >= 2500:
+            score += 50
+        elif cy >= 2200:
+            score += 15
+        if 150 <= cy <= 600 and (idl.startswith("tabs_") or "tab" in idl):
+            score += 35
+        if str(a.get("clickable", "")).lower() in ("true", "1"):
+            score += 5
+        if typ == "Button":
+            score += 5
+        if bounds and (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]) < 400:
+            score -= 10
+        return score
+
+    def _find_first(self, selectors: dict) -> Optional[dict]:
+        hits = self._find_all(selectors)
+        return hits[0] if hits else None
+
+    def _find_best_click(self, selectors: dict) -> Optional[dict]:
+        hits = self._find_all(selectors)
+        if not hits:
             return None
-        for node in _walk_nodes(root):
-            if _match_node(node, selectors):
-                return node
-        return None
+        if len(hits) == 1:
+            return hits[0]
+        if any(k in selectors for k in ("id", "resourceId", "type", "className")):
+            return hits[0]
+        return max(hits, key=self._click_rank)
 
     def _live_obj(self, selectors: dict):
         # hmdriver2 uses same keyword style: text=, id=, description=, type=
@@ -268,13 +333,25 @@ class HMDevice:
             try:
                 try:
                     self.dump_hierarchy()
-                    node = self._find_first(selectors)
+                    node = self._find_best_click(selectors)
                     if node is not None:
                         bounds = _parse_bounds(_attrs(node).get("bounds"))
                         if bounds:
                             x = (bounds[0] + bounds[2]) // 2
                             y = (bounds[1] + bounds[3]) // 2
                             return self._click_xy(x, y)
+                except Exception as e:
+                    last = e
+                # pin id from best match for hmdriver2 fallback
+                try:
+                    self.dump_hierarchy()
+                    best = self._find_best_click(selectors)
+                    if best is not None:
+                        bid = str(_attrs(best).get("id") or "")
+                        if bid and "id" not in selectors and "resourceId" not in selectors:
+                            sel2 = dict(selectors)
+                            sel2["id"] = bid
+                            return self._live_obj(sel2).click()
                 except Exception as e:
                     last = e
                 obj = self._live_obj(selectors)
