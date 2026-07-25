@@ -52,6 +52,9 @@ def _is_noise(label: str, typ: str, y1: int, cy: int) -> bool:
     low = label.lower()
     if "loading error" in low or low in ("retry", "reload"):
         return True
+    # AppGallery/GameCenter feed CTAs — installing apps mid-explore is destructive
+    if low in ("install", "update", "open", "get", "下载", "安装", "更新", "打开"):
+        return True
     return False
 
 
@@ -118,6 +121,8 @@ def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int
         low = label.lower()
         if low in ("play on", "this device") or "khz" in low or "spatial audio" in low:
             w -= 6
+        if low in ("install", "update", "open", "get", "下载", "安装", "更新"):
+            w -= 10
         if w < 1:
             w = 1
         out.append((cx, cy, x1, y1, x2, y2, label, typ, w))
