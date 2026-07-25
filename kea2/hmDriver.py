@@ -458,6 +458,7 @@ class HMDevice:
 
         Music: Premium PLUS / 0元开通 sheet leaves tabs visible but body stuck
         on previous page — tab taps appear to no-op for property oracles.
+        Also one-tap tips: Ignore (Weather).
         Returns number of dismiss actions taken.
         """
         # Hard sheets only — NOT mini-player chrome (More options / Spatial Audio)
@@ -484,6 +485,25 @@ class HMDevice:
                 blob_parts.append(str(a.get("description") or ""))
                 blob_parts.append(str(a.get("id") or ""))
             blob = " ".join(blob_parts).lower()
+            # one-tap dismiss buttons (Weather tip etc.)
+            tapped = False
+            for lab in ("Ignore", "Later", "Not now", "Close"):
+                try:
+                    if self(text=lab).exists(timeout=0):
+                        # direct xy via best click without recurse dismiss
+                        node = self._find_best_click({"text": lab})
+                        if node is not None:
+                            bounds = _parse_bounds(_attrs(node).get("bounds"))
+                            if bounds:
+                                self._click_xy((bounds[0]+bounds[2])//2, (bounds[1]+bounds[3])//2)
+                                tapped = True
+                                n += 1
+                                time.sleep(0.35)
+                                break
+                except Exception:
+                    pass
+            if tapped:
+                continue
             hits = [m for m in markers if m in blob]
             # need a strong hit; single weak substring not enough
             if not hits:
