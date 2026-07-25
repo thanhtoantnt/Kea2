@@ -117,6 +117,8 @@ def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int
         # bottom band without tab id = feed/player chrome — deprioritize
         if cy >= 2400 and not (nid == "tab_text" or idl.startswith("tabs_") or "tab" in idl):
             w -= 5
+            if len(label) > 8:
+                w -= 8  # cnnb feed titles sit in bottom band
         # mini-player / cast sheet bait
         low = label.lower()
         if low in ("play on", "this device") or "khz" in low or "spatial audio" in low:

@@ -292,6 +292,12 @@ class HMDevice:
             score += 5
         if bounds and (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]) < 400:
             score -= 10
+        # Feed titles mis-detected as bottom tabs (cnnb: long question text at y>2500)
+        label = str(a.get("text") or a.get("description") or "")
+        if cy >= 2400 and len(label) > 8 and "tab" not in idl:
+            score -= 40
+        if any(ch in label for ch in ("？", "?", "！", "阅读", "评论")):
+            score -= 30
         return score
 
     def _find_first(self, selectors: dict) -> Optional[dict]:
