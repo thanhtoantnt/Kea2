@@ -351,6 +351,29 @@ class HarmonyExplorer:
         self._steps += 1
         h = self.dump_sut_hierarchy()
         h = _maybe_dismiss_overlay(self.d, self.hdc, h)
+        # Weather/city picker etc.: no bottom tabs, has search/popular cities → Back to home chrome
+        try:
+            texts_l = [x.lower() for x in self._content_texts(h)]
+            blob = " ".join(texts_l)
+            has_tab = any(
+                str(_attrs(n).get("id") or "") == "tab_text" for n in _walk_nodes(h)
+            )
+            if (not has_tab) and any(
+                k in blob
+                for k in (
+                    "popular cities",
+                    "search for a city",
+                    "search city",
+                    "manage cities",
+                    "select a city",
+                )
+            ):
+                logger.info("[Harmony] city-picker/subpage without tabs — Back")
+                self.hdc.shell("uitest uiInput keyEvent Back")
+                time.sleep(0.5)
+                h = self.dump_sut_hierarchy()
+        except Exception:
+            pass
         # Escape broken H5 error pages (Maps Discover rankings trap)
         texts = " ".join(self._content_texts(h)).lower()
         if "loading error" in texts or ("retry" in texts and "h5" in texts):
