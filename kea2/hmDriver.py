@@ -81,13 +81,14 @@ class HMUiObject:
         self.selectors = selectors
 
     def exists(self, timeout: float = 0) -> bool:
-        # Prefer in-memory hierarchy match. Live hmdriver2 .exists() retries for
-        # seconds per miss — kills setUpClass dismiss loops and precond scans.
-        # timeout==0 → one dump + match, no live retry storm.
-        if self.driver._hierarchy is not None:
-            return self.driver._find_first(self.selectors) is not None
+        # timeout==0: cheap match on cached dump (or one dump). Used by precond scans.
+        # timeout>0: always re-dump and poll until match or deadline (click→body props).
+        # Bugfix: old code returned cached hierarchy even when timeout>0, so
+        # exists(timeout=2) never waited for post-click UI.
         timeout = max(0.0, float(timeout or 0))
         if timeout == 0:
+            if self.driver._hierarchy is not None:
+                return self.driver._find_first(self.selectors) is not None
             try:
                 self.driver.dump_hierarchy()
                 return self.driver._find_first(self.selectors) is not None
@@ -105,12 +106,16 @@ class HMUiObject:
                 return False
             time.sleep(0.2)
 
-    def click(self):
-        # Bounds-first live click + post-click settle. Multi-click nav races
-        # (music Me roundtrip, maps POI close) were ElementNotFound between
-        # precond dump and hmdriver2 selector resolve — or next click too soon.
+    def wait(self, timeout: float = 2.0) -> bool:
+        """Poll until this selector exists. Alias of exists(timeout=...)."""
+        return self.exists(timeout=timeout)
+
+    def click(self, settle: float = 1.0):
+        # Bounds-first live click + settle-until-hierarchy-changes (Music/Calendar
+        # body-after-tab races). settle=0 → min sleep only.
+        prev = self.driver._hierarchy_fingerprint()
         r = self.driver._live_click(self.selectors, retries=3)
-        time.sleep(0.5)  # ponytail: global settle; was 0.35 — maoyan cold first-click flake
+        self.driver._settle_after_action(prev_fp=prev, timeout=float(settle or 0))
         return r
 
     def set_text(self, text: str):
@@ -312,13 +317,74 @@ class HMDevice:
         from .hdcUtils import HDCDevice
         HDCDevice().shell(f"uitest uiInput click {x} {y}")
 
-    def go_back(self):
-        if hasattr(self._hm, "go_back"):
-            return self._hm.go_back()
-        if hasattr(self._hm, "press_back"):
-            return self._hm.press_back()
+    def _hierarchy_fingerprint(self) -> tuple:
+        """Cheap UI signature for settle-until-change."""
+        root = self._hierarchy
+        if not root:
+            return (0, ())
+        texts: list = []
+        for node in _walk_nodes(root):
+            a = _attrs(node)
+            t = str(a.get("text") or "").strip()
+            if t:
+                texts.append(t[:40])
+            if len(texts) >= 48:
+                break
+        return (len(list(_walk_nodes(root))), tuple(texts))
+
+    def _settle_after_action(self, prev_fp=None, timeout: float = 1.0):
+        """After click/tap: wait for hierarchy change or timeout.
+
+        Music/Calendar Mode A: fixed sleep(0.5) was not enough for tab body;
+        also not too long when chrome-only. Min 0.25s always.
+        """
+        timeout = max(0.0, float(timeout or 0))
+        time.sleep(0.25)
+        if timeout <= 0.25:
+            try:
+                self.dump_hierarchy()
+            except Exception:
+                pass
+            return
+        deadline = time.time() + max(0.0, timeout - 0.25)
+        while time.time() < deadline:
+            try:
+                self.dump_hierarchy()
+                fp = self._hierarchy_fingerprint()
+                if prev_fp is not None and fp != prev_fp:
+                    time.sleep(0.12)  # brief stabilize after first change
+                    try:
+                        self.dump_hierarchy()
+                    except Exception:
+                        pass
+                    return
+            except Exception:
+                pass
+            time.sleep(0.15)
+        try:
+            self.dump_hierarchy()
+        except Exception:
+            pass
+
+    def press(self, key: str = "back"):
+        """uiautomator2-ish: d.press('back')."""
+        k = (key or "back").lower()
+        if k in ("back", "esc", "escape"):
+            return self.go_back()
         from .hdcUtils import HDCDevice
-        HDCDevice().shell("uitest uiInput keyEvent Back")
+        HDCDevice().shell(f"uitest uiInput keyEvent {key}")
+
+    def go_back(self):
+        prev = self._hierarchy_fingerprint()
+        if hasattr(self._hm, "go_back"):
+            r = self._hm.go_back()
+        elif hasattr(self._hm, "press_back"):
+            r = self._hm.press_back()
+        else:
+            from .hdcUtils import HDCDevice
+            r = HDCDevice().shell("uitest uiInput keyEvent Back")
+        self._settle_after_action(prev_fp=prev, timeout=0.8)
+        return r
 
     def app_stop(self, package: str):
         from .hdcUtils import HDCDevice

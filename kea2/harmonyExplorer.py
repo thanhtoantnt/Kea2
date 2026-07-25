@@ -55,9 +55,13 @@ def _is_noise(label: str, typ: str, y1: int, cy: int) -> bool:
     return False
 
 
-def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int, int, str, str]]:
-    """Return (cx, cy, x1, y1, x2, y2, label, typ) for plausible taps."""
-    out: List[Tuple[int, int, int, int, int, int, str, str]] = []
+def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int, int, str, str, int]]:
+    """Return (cx, cy, x1, y1, x2, y2, label, typ, weight) for plausible taps.
+
+    Higher weight = more likely pick. Music Mode A: bottom feed rows (artist
+    names) sat next to tab_text and opened mini-player — bias real tabs/ids.
+    """
+    out: List[Tuple[int, int, int, int, int, int, str, str, int]] = []
     for node in _walk_nodes(hierarchy):
         a = _attrs(node)
         bounds = _parse_bounds(a.get("bounds"))
@@ -73,6 +77,7 @@ def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int
         typ = str(a.get("type") or "")
         text = str(a.get("text") or "")
         desc = str(a.get("description") or "")
+        nid = str(a.get("id") or "")
         label = (text or desc or typ or "node")[:40]
         cx = (x1 + x2) // 2
         cy = (y1 + y2) // 2
@@ -97,8 +102,76 @@ def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int
             continue
         if not (text or desc or clickable or typ in ("Button", "SymbolGlyph", "Toggle")):
             continue
-        out.append((cx, cy, x1, y1, x2, y2, label, typ))
+        # scoring
+        w = 1
+        idl = nid.lower()
+        if nid == "tab_text" or idl.startswith("tabs_") or "tab_text" in idl:
+            w += 8
+        if typ in ("Tabs", "TabBar") or "tab" in idl:
+            w += 4
+        if typ == "Button" or clickable:
+            w += 2
+        # bottom band without tab id = feed/player chrome — deprioritize
+        if cy >= 2400 and not (nid == "tab_text" or idl.startswith("tabs_") or "tab" in idl):
+            w -= 5
+        # mini-player / cast sheet bait
+        low = label.lower()
+        if low in ("play on", "this device") or "khz" in low or "spatial audio" in low:
+            w -= 6
+        if w < 1:
+            w = 1
+        out.append((cx, cy, x1, y1, x2, y2, label, typ, w))
     return out
+
+
+def _weighted_choice(cands: List[Tuple]) -> Tuple:
+    """Pick candidate by weight (last field)."""
+    if not cands:
+        raise ValueError("empty cands")
+    weights = [max(1, int(c[-1])) for c in cands]
+    return random.choices(cands, weights=weights, k=1)[0]
+
+
+_OVERLAY_BACK = (
+    "play on",
+    "this device",
+    "not interested",
+    "similar songs",
+    "set as ringtone",
+    "add to playlist",
+    "view artist",
+    "view album",
+)
+
+
+def _maybe_dismiss_overlay(d: HMDevice, hdc: HDCDevice, hierarchy: dict) -> dict:
+    """One Back if cast/player sheet chrome dominates (Music Mode A trap)."""
+    texts = []
+    for node in _walk_nodes(hierarchy):
+        t = str(_attrs(node).get("text") or "").strip().lower()
+        if t:
+            texts.append(t)
+    blob = " | ".join(texts[:80])
+    if any(k in blob for k in _OVERLAY_BACK):
+        # only if bottom tabs missing — real home has tab labels
+        has_tab = any(
+            str(_attrs(n).get("id") or "") == "tab_text" for n in _walk_nodes(hierarchy)
+        )
+        if not has_tab:
+            logger.info("[Harmony] overlay/sheet without tabs — keyEvent Back")
+            try:
+                hdc.shell("uitest uiInput keyEvent Back")
+            except Exception:
+                try:
+                    d.go_back()
+                except Exception:
+                    pass
+            time.sleep(0.5)
+            try:
+                return d.dump_hierarchy() or hierarchy
+            except Exception:
+                return hierarchy
+    return hierarchy
 
 
 class HarmonyExplorer:
@@ -268,6 +341,7 @@ class HarmonyExplorer:
         """One random exploration step; return hierarchy JSON string (SUT FG)."""
         self._steps += 1
         h = self.dump_sut_hierarchy()
+        h = _maybe_dismiss_overlay(self.d, self.hdc, h)
         # Escape broken H5 error pages (Maps Discover rankings trap)
         texts = " ".join(self._content_texts(h)).lower()
         if "loading error" in texts or ("retry" in texts and "h5" in texts):
@@ -280,21 +354,33 @@ class HarmonyExplorer:
             h = self.dump_sut_hierarchy()
         cands = _clickable_candidates(h)
         if cands:
-            cx, cy, x1, y1, x2, y2, label, typ = random.choice(cands)
-            logger.info(f"Harmony explore tap ({cx},{cy}) {label!r}")
+            pick = _weighted_choice(cands)
+            cx, cy, x1, y1, x2, y2, label, typ = pick[:8]
+            logger.info(f"Harmony explore tap ({cx},{cy}) {label!r} w={pick[-1]}")
+            prev = None
+            try:
+                prev = self.d._hierarchy_fingerprint()
+            except Exception:
+                pass
             try:
                 self.d._click_xy(cx, cy)
             except Exception as e:
                 logger.warning(f"tap failed: {e}")
+            try:
+                self.d._settle_after_action(prev_fp=prev, timeout=max(0.5, self.throttle or 0.5))
+            except Exception:
+                if self.throttle:
+                    time.sleep(self.throttle)
             self.log_monkey("CLICK", [x1, y1, x2, y2], label=label, typ=typ)
         else:
             logger.info("Harmony explore swipe fallback")
             self.hdc.shell("uitest uiInput swipe 540 1800 540 600 300")
             self.log_monkey("SCROLL", [540, 1800, 540, 600], label="swipe", typ="swipe")
-        if self.throttle:
-            time.sleep(self.throttle)
+            if self.throttle:
+                time.sleep(self.throttle)
         # Taps (esp. after hmdriver reconnect) can drop SUT; re-grab before precond dump.
         h2 = self.dump_sut_hierarchy()
+        h2 = _maybe_dismiss_overlay(self.d, self.hdc, h2)
         return json.dumps(h2, ensure_ascii=False)
 
     def stopMonkey(self):
@@ -363,7 +449,34 @@ if __name__ == "__main__":
             },
         ],
     }
-    labels = [c[6] for c in _clickable_candidates(fake)]
+    cands = _clickable_candidates(fake)
+    labels = [c[6] for c in cands]
     assert "首页" in labels and "路线" in labels, labels
     assert "83" not in labels and "metaballNode" not in labels, labels
-    print("ok", labels)
+    # tab-like bottom should outrank noise if weighted
+    fake2 = {
+        "attributes": {"bounds": "[0,0][1280,2832]", "type": "root"},
+        "children": [
+            {
+                "attributes": {
+                    "bounds": "[100,2600][300,2750]",
+                    "text": "Home",
+                    "id": "tab_text",
+                    "type": "Text",
+                    "clickable": "true",
+                }
+            },
+            {
+                "attributes": {
+                    "bounds": "[400,2550][700,2700]",
+                    "text": "Some Artist",
+                    "type": "Text",
+                    "clickable": "true",
+                }
+            },
+        ],
+    }
+    c2 = _clickable_candidates(fake2)
+    by_label = {c[6]: c[-1] for c in c2}
+    assert by_label.get("Home", 0) > by_label.get("Some Artist", 0), by_label
+    print("ok", labels, "weights", by_label)
