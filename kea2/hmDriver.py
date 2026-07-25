@@ -113,9 +113,19 @@ class HMUiObject:
     def click(self, settle: float = 1.0):
         # Bounds-first live click + settle-until-hierarchy-changes (Music/Calendar
         # body-after-tab races). settle=0 → min sleep only.
+        # Dismiss blocking sheets first so tab clicks actually switch pages (Music
+        # Premium PLUS overlay left tabs tappable but content frozen).
+        try:
+            self.driver.dismiss_blocking_sheets()
+        except Exception:
+            pass
         prev = self.driver._hierarchy_fingerprint()
         r = self.driver._live_click(self.selectors, retries=3)
         self.driver._settle_after_action(prev_fp=prev, timeout=float(settle or 0))
+        try:
+            self.driver.dismiss_blocking_sheets(max_rounds=1)
+        except Exception:
+            pass
         return r
 
     def click_then(self, *assert_texts: str, timeout: float = 2.0, settle: float = 1.2) -> bool:
@@ -442,6 +452,48 @@ class HMDevice:
             self.dump_hierarchy()
         except Exception:
             pass
+
+    def dismiss_blocking_sheets(self, max_rounds: int = 3) -> int:
+        """Dismiss membership/cast/player sheets that block tab content.
+
+        Music: Premium PLUS / 0元开通 sheet leaves tabs visible but body stuck
+        on previous page — tab taps appear to no-op for property oracles.
+        Returns number of dismiss actions taken.
+        """
+        markers = (
+            "premium plus",
+            "0元开通",
+            "play on",
+            "this device",
+            "memberpurchase",
+            "i agree to the music membership",
+            "more options",
+        )
+        n = 0
+        for _ in range(max(1, max_rounds)):
+            try:
+                self.dump_hierarchy()
+            except Exception:
+                break
+            blob_parts = []
+            for node in _walk_nodes(self._hierarchy or {}):
+                a = _attrs(node)
+                blob_parts.append(str(a.get("text") or ""))
+                blob_parts.append(str(a.get("description") or ""))
+                blob_parts.append(str(a.get("id") or ""))
+            blob = " ".join(blob_parts).lower()
+            if not any(m in blob for m in markers):
+                break
+            # Prefer Back; membership sheets usually pop via NavDestination
+            try:
+                self.go_back()
+            except Exception:
+                from .hdcUtils import HDCDevice
+                HDCDevice().shell("uitest uiInput keyEvent Back")
+                time.sleep(0.5)
+            n += 1
+            time.sleep(0.35)
+        return n
 
     def press(self, key: str = "back"):
         """uiautomator2-ish: d.press('back')."""

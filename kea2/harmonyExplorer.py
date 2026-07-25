@@ -141,6 +141,9 @@ _OVERLAY_BACK = (
     "add to playlist",
     "view artist",
     "view album",
+    "premium plus",
+    "0元开通",
+    "music membership",
 )
 
 
@@ -153,12 +156,13 @@ def _maybe_dismiss_overlay(d: HMDevice, hdc: HDCDevice, hierarchy: dict) -> dict
             texts.append(t)
     blob = " | ".join(texts[:80])
     if any(k in blob for k in _OVERLAY_BACK):
-        # only if bottom tabs missing — real home has tab labels
+        # Premium/membership sheets keep tab_text visible but block body switches
+        hard = any(k in blob for k in ("premium plus", "0元开通", "music membership", "play on"))
         has_tab = any(
             str(_attrs(n).get("id") or "") == "tab_text" for n in _walk_nodes(hierarchy)
         )
-        if not has_tab:
-            logger.info("[Harmony] overlay/sheet without tabs — keyEvent Back")
+        if hard or not has_tab:
+            logger.info("[Harmony] overlay/sheet dismiss — keyEvent Back")
             try:
                 hdc.shell("uitest uiInput keyEvent Back")
             except Exception:
