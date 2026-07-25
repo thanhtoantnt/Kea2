@@ -460,14 +460,16 @@ class HMDevice:
         on previous page — tab taps appear to no-op for property oracles.
         Returns number of dismiss actions taken.
         """
+        # Hard sheets only — NOT mini-player chrome (More options / Spatial Audio)
+        # or Back exits the whole app (Music Mode A regression).
         markers = (
             "premium plus",
             "0元开通",
             "play on",
-            "this device",
-            "memberpurchase",
+            "this device (",  # cast sheet "This device (…)"
+            "memberpurchasebutton",
             "i agree to the music membership",
-            "more options",
+            "music membership service agreement",
         )
         n = 0
         for _ in range(max(1, max_rounds)):
@@ -482,7 +484,9 @@ class HMDevice:
                 blob_parts.append(str(a.get("description") or ""))
                 blob_parts.append(str(a.get("id") or ""))
             blob = " ".join(blob_parts).lower()
-            if not any(m in blob for m in markers):
+            hits = [m for m in markers if m in blob]
+            # need a strong hit; single weak substring not enough
+            if not hits:
                 break
             # Prefer Back; membership sheets usually pop via NavDestination
             try:
