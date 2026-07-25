@@ -298,6 +298,9 @@ class HMDevice:
             score -= 40
         if any(ch in label for ch in ("？", "?", "！", "阅读", "评论")):
             score -= 30
+        # badge counts (qunar tab "0") must not win as nav
+        if label.isdigit():
+            score -= 80
         return score
 
     def _find_first(self, selectors: dict) -> Optional[dict]:
