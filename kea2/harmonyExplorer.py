@@ -258,11 +258,11 @@ class HarmonyExplorer:
             if self._sut_fg() and not self._looks_launcherish(last):
                 return last
             # Empty / tiny dump while still FG: wait and re-dump (no relaunch yet).
-            if self._sut_fg() and len(texts) <= 2 and attempt < 3:
+            if self._sut_fg() and len(texts) <= 2 and attempt < 5:
                 logger.warning(
                     f"[Harmony] empty FG dump try={attempt} texts={len(texts)}; wait-paint"
                 )
-                time.sleep(1.5)
+                time.sleep(2.0)
                 continue
             logger.warning(
                 f"[Harmony] weak/launcher hierarchy try={attempt} "
