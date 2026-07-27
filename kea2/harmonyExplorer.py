@@ -125,6 +125,9 @@ def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int
             w -= 6
         if low in ("install", "update", "open", "get", "下载", "安装", "更新"):
             w -= 10
+        # Maps: Drive/导航 leaves bottom-nav shell (Mode B flake)
+        if low in ("drive", "导航", "route", "go") or "drive" == low:
+            w -= 6
         if w < 1:
             w = 1
         out.append((cx, cy, x1, y1, x2, y2, label, typ, w))
