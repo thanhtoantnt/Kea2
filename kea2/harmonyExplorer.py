@@ -242,9 +242,13 @@ class HarmonyExplorer:
         return False
 
     def dump_sut_hierarchy(self) -> dict:
-        """Dump hierarchy while SUT is FOREGROUND; relaunch if dump is launcherish."""
+        """Dump hierarchy while SUT is FOREGROUND; relaunch if dump is launcherish.
+
+        Browser/hybrid late paint: empty dump while FG is normal for a few seconds —
+        poll before force-relaunch (relaunch thrash burned whole running-minutes).
+        """
         last: dict = {}
-        for attempt in range(4):
+        for attempt in range(6):
             if not self._sut_fg():
                 logger.info(f"[Harmony] SUT not FOREGROUND (try {attempt}); start_apps")
                 self.start_apps()
@@ -253,12 +257,19 @@ class HarmonyExplorer:
             texts = self._content_texts(last)
             if self._sut_fg() and not self._looks_launcherish(last):
                 return last
+            # Empty / tiny dump while still FG: wait and re-dump (no relaunch yet).
+            if self._sut_fg() and len(texts) <= 2 and attempt < 3:
+                logger.warning(
+                    f"[Harmony] empty FG dump try={attempt} texts={len(texts)}; wait-paint"
+                )
+                time.sleep(1.5)
+                continue
             logger.warning(
                 f"[Harmony] weak/launcher hierarchy try={attempt} "
                 f"fg={self._sut_fg()} texts={len(texts)} sample={texts[:8]!r}; relaunch"
             )
             self.start_apps()
-            time.sleep(2.0)
+            time.sleep(2.5)
         return last or self.d.dump_hierarchy() or {}
 
     def dumpHierarchy(self) -> str:
