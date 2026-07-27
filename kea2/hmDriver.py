@@ -255,6 +255,12 @@ class HMDevice:
         # only when the random explorer happens to tap them.
         return self._click_xy(x, y)
 
+    def swipe(self, x1: int, y1: int, x2: int, y2: int, speed: int = 600):
+        """Coordinate swipe — parity with Android u2. Opaque-Web props used d.swipe and ERROR'd."""
+        from .hdcUtils import HDCDevice
+        # uitest: uiInput swipe x1 y1 x2 y2 [duration_ms]
+        HDCDevice().shell(f"uitest uiInput swipe {int(x1)} {int(y1)} {int(x2)} {int(y2)} {int(speed)}")
+
     def _find_all(self, selectors: dict) -> List[dict]:
         root = self._hierarchy
         if root is None:
