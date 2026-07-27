@@ -1,0 +1,137 @@
+{
+  "package": "com.xuesaieducation.zhengjuanhm",
+  "device": "5SM0125606000291",
+  "ability": "EntryAbility",
+  "scroll_works": true,
+  "scroll_content_diff": 19.73,
+  "diff_eps": 8.0,
+  "dead_tabs": [
+    {
+      "control": "tab1_member",
+      "x": 384,
+      "y_tried": [
+        2680,
+        2720,
+        2750
+      ],
+      "max_content_diff": 4.93,
+      "property": "tap(tab) ⇒ UI changes (content_diff≥ε) when scroll works",
+      "violation": "max_diff=4.93 < 8.0"
+    },
+    {
+      "control": "tab2_course",
+      "x": 640,
+      "y_tried": [
+        2680,
+        2720,
+        2750
+      ],
+      "max_content_diff": 4.93,
+      "property": "tap(tab) ⇒ UI changes (content_diff≥ε) when scroll works",
+      "violation": "max_diff=4.93 < 8.0"
+    },
+    {
+      "control": "tab3_learn",
+      "x": 896,
+      "y_tried": [
+        2680,
+        2720,
+        2750
+      ],
+      "max_content_diff": 4.93,
+      "property": "tap(tab) ⇒ UI changes (content_diff≥ε) when scroll works",
+      "violation": "max_diff=4.93 < 8.0"
+    },
+    {
+      "control": "tab4_me",
+      "x": 1152,
+      "y_tried": [
+        2680,
+        2720,
+        2750
+      ],
+      "max_content_diff": 4.93,
+      "property": "tap(tab) ⇒ UI changes (content_diff≥ε) when scroll works",
+      "violation": "max_diff=4.93 < 8.0"
+    }
+  ],
+  "handoffs": [],
+  "tab_rows": [
+    {
+      "name": "tab1_member",
+      "x": 384,
+      "max_diff": 4.933729648590088,
+      "y": 2720,
+      "fg_after": "com.xuesaieducation.zhengjuanhm",
+      "dead": true,
+      "handoff": null
+    },
+    {
+      "name": "tab2_course",
+      "x": 640,
+      "max_diff": 4.933729648590088,
+      "y": 2720,
+      "fg_after": "com.xuesaieducation.zhengjuanhm",
+      "dead": true,
+      "handoff": null
+    },
+    {
+      "name": "tab3_learn",
+      "x": 896,
+      "max_diff": 4.933729648590088,
+      "y": 2720,
+      "fg_after": "com.xuesaieducation.zhengjuanhm",
+      "dead": true,
+      "handoff": null
+    },
+    {
+      "name": "tab4_me",
+      "x": 1152,
+      "max_diff": 4.933729648590088,
+      "y": 2720,
+      "fg_after": "com.xuesaieducation.zhengjuanhm",
+      "dead": true,
+      "handoff": null
+    }
+  ],
+  "cta_rows": [
+    {
+      "control": "cta_do_exam",
+      "x": 300,
+      "y": 1200,
+      "content_diff": 0.0,
+      "fg_before": "com.xuesaieducation.zhengjuanhm",
+      "fg_after": "com.xuesaieducation.zhengjuanhm"
+    },
+    {
+      "control": "cta_mock",
+      "x": 220,
+      "y": 1750,
+      "content_diff": 27.23,
+      "fg_before": "com.xuesaieducation.zhengjuanhm",
+      "fg_after": "com.xuesaieducation.zhengjuanhm"
+    },
+    {
+      "control": "cta_records",
+      "x": 250,
+      "y": 2100,
+      "content_diff": 0.0,
+      "fg_before": "com.xuesaieducation.zhengjuanhm",
+      "fg_after": "com.xuesaieducation.zhengjuanhm"
+    },
+    {
+      "control": "cta_wrong",
+      "x": 640,
+      "y": 2100,
+      "content_diff": 0.0,
+      "fg_before": "com.xuesaieducation.zhengjuanhm",
+      "fg_after": "com.xuesaieducation.zhengjuanhm"
+    }
+  ],
+  "bug_dead_tabs": true,
+  "bug_frozen_shell": false,
+  "bug_handoff": false,
+  "classification": [
+    "SUT/nav bug: bottom tab taps do not change UI while scroll works (dead hit targets)"
+  ]
+}
