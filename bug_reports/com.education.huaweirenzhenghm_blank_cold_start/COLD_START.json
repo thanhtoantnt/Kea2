@@ -1,0 +1,51 @@
+{
+  "package": "com.education.huaweirenzhenghm",
+  "device": "5SM0125606000291",
+  "ability": "EntryAbility",
+  "n": 4,
+  "wait_s": 10.0,
+  "blank_threshold": 0.92,
+  "blank_count": 3,
+  "blank_rate": "3/4",
+  "blank_rate_pct": 75.0,
+  "bug_if_blank": true,
+  "classification": "SUT reliability bug: intermittent blank white cold start (FOREGROUND, no UI paint)",
+  "trials": [
+    {
+      "trial": 0,
+      "wait_s": 10.0,
+      "white_frac": 0.9853,
+      "mean_pixel": 254.18,
+      "foreground": true,
+      "blank": true,
+      "screenshot": "cold-start/trial_00.png"
+    },
+    {
+      "trial": 1,
+      "wait_s": 10.0,
+      "white_frac": 0.8142,
+      "mean_pixel": 247.22,
+      "foreground": true,
+      "blank": false,
+      "screenshot": "cold-start/trial_01.png"
+    },
+    {
+      "trial": 2,
+      "wait_s": 10.0,
+      "white_frac": 0.9852,
+      "mean_pixel": 254.16,
+      "foreground": true,
+      "blank": true,
+      "screenshot": "cold-start/trial_02.png"
+    },
+    {
+      "trial": 3,
+      "wait_s": 10.0,
+      "white_frac": 0.9721,
+      "mean_pixel": 253.51,
+      "foreground": true,
+      "blank": true,
+      "screenshot": "cold-start/trial_03.png"
+    }
+  ]
+}
