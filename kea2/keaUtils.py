@@ -629,6 +629,24 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
         # dialogs; if it runs pre-launch, cls.d works but UI is still launcher/other app
         # → T0 preconds never match (amap pi-pbt: executed_total=0).
         explorer.init(options=self.options, stamp=stamp_manager.stamp)
+
+        # Mode A crash/ANR oracle for Harmony (Android uses Fastbot LogWatcher).
+        # Writes crash-dump.log in Fastbot format so HTML report parsers work.
+        harmony_log_watcher = None
+        try:
+            from .harmonyLogWatcher import HarmonyLogWatcher
+            from pathlib import Path as _Path
+
+            crash_dump = _Path(stamp_manager.output_dir) / f"output_{stamp_manager.stamp}" / "crash-dump.log"
+            harmony_log_watcher = HarmonyLogWatcher(
+                crash_dump_path=crash_dump,
+                packages=list(self.options.packageNames or []),
+                serial=hdc.serial,
+            )
+            harmony_log_watcher.start()
+        except Exception as e:
+            logger.warning(f"HarmonyLogWatcher not started: {e}")
+
         for t in {**self.allProperties, **self.allInvariants}.values():
             self.setUpClass(t)
         result.flushResult()
@@ -756,9 +774,23 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
         except Exception as e:
             import traceback
             traceback.print_exc()
-            raise KeaRuntimeError("Harmony Kea run failed.") from e
+            # Transient hdc disconnect mid-run: keep partial steps/report instead of hard fail
+            err_s = str(e)
+            if "Device not found" in err_s or "HDC shell error" in err_s or "not connected" in err_s.lower():
+                logger.error(f"Harmony run interrupted by device/HDC error (partial results kept): {e}")
+            else:
+                raise KeaRuntimeError("Harmony Kea run failed.") from e
         finally:
             explorer.stopMonkey()
+            if harmony_log_watcher is not None:
+                try:
+                    harmony_log_watcher.close()
+                    result.has_crash_or_anr = bool(
+                        getattr(result, "has_crash_or_anr", False)
+                        or harmony_log_watcher.has_crash_or_anr
+                    )
+                except Exception as e:
+                    logger.warning(f"HarmonyLogWatcher close: {e}")
             result.flushResult()
             result.logSummary()
             try:

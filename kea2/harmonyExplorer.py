@@ -160,8 +160,73 @@ _OVERLAY_BACK = (
 )
 
 
+_PERM_TAP_EXACT = {
+    "允许", "Allow", "始终允许", "仅使用期间", "使用时允许",
+    "仅在使用中允许", "While using the app", "Only this time",
+    "Allow this time only", "Allow all the time", "本次允许",
+    "同意", "Agree", "确定", "OK", "好的",
+}
+
+
+def _maybe_grant_permission(d: HMDevice, hierarchy: dict) -> dict:
+    """Tap system permission Allow if present (location/camera walls stall Mode A)."""
+    blob_bits = []
+    candidates = []
+    for node in _walk_nodes(hierarchy):
+        a = _attrs(node)
+        text = str(a.get("text") or "").strip()
+        desc = str(a.get("description") or "").strip()
+        label = text or desc
+        if not label:
+            continue
+        blob_bits.append(label.lower())
+        bounds = _parse_bounds(a.get("bounds"))
+        if not bounds:
+            continue
+        if label in _PERM_TAP_EXACT or label.lower() in {x.lower() for x in _PERM_TAP_EXACT}:
+            x1, y1, x2, y2 = bounds
+            candidates.append(((x1 + x2) // 2, (y1 + y2) // 2, label))
+    blob = " ".join(blob_bits)
+    if not candidates:
+        return hierarchy
+    # only when dialog-ish wording present
+    if not any(
+        k in blob
+        for k in (
+            "location", "位置", "permission", "权限", "camera", "相机",
+            "microphone", "麦克风", "photos", "相册", "storage", "存储",
+            "notifications", "通知", "access your", "访问",
+        )
+    ):
+        return hierarchy
+    # prefer stronger allow over OK
+    prefer = ("始终允许", "Allow all the time", "使用时允许", "While using the app",
+              "允许", "Allow", "同意", "Agree")
+    pick = None
+    for pref in prefer:
+        for c in candidates:
+            if c[2] == pref or c[2].lower() == pref.lower():
+                pick = c
+                break
+        if pick:
+            break
+    if not pick:
+        pick = candidates[0]
+    cx, cy, label = pick
+    logger.info(f"[Harmony] permission grant tap {label!r} @({cx},{cy})")
+    try:
+        d._click_xy(cx, cy)
+        time.sleep(0.8)
+        return d.dump_hierarchy() or hierarchy
+    except Exception as e:
+        logger.debug(f"permission tap failed: {e}")
+        return hierarchy
+
+
 def _maybe_dismiss_overlay(d: HMDevice, hdc: HDCDevice, hierarchy: dict) -> dict:
     """One Back if cast/player sheet chrome dominates (Music Mode A trap)."""
+    # permission dialogs first — Back would deny and strand apps (maps/外卖)
+    hierarchy = _maybe_grant_permission(d, hierarchy)
     texts = []
     for node in _walk_nodes(hierarchy):
         t = str(_attrs(node).get("text") or "").strip().lower()
@@ -235,9 +300,14 @@ class HarmonyExplorer:
             return True
         texts = self._content_texts(h)
         # Recent-apps strip often shows other app names while SUT is not really focused.
-        launcher_markers = ("美柚", "通信工程师考试", "AppGallery", "设置", "Settings", "Books", "Wallet")
-        hit = sum(1 for t in texts if t in launcher_markers)
-        if hit >= 2 and len(texts) <= 12:
+        # Generic home-screen chrome (was too app-specific → false relaunch thrash)
+        launcher_markers = (
+            "AppGallery", "Settings", "设置", "Books", "Wallet", "GameCenter",
+            "Huawei Apps", "Theme Studio", "小艺建议", "Double-tap to activate",
+            "Touch & hold the time",
+        )
+        hit = sum(1 for t in texts if any(m.lower() in t.lower() for m in launcher_markers))
+        if hit >= 2 and len(texts) <= 14:
             return True
         # Very empty dump while claiming FG — often mid-transition
         if len(texts) <= 2:
@@ -368,7 +438,17 @@ class HarmonyExplorer:
     def stepMonkey(self, _info: Optional[dict] = None) -> str:
         """One random exploration step; return hierarchy JSON string (SUT FG)."""
         self._steps += 1
-        h = self.dump_sut_hierarchy()
+        try:
+            h = self.dump_sut_hierarchy()
+        except Exception as e:
+            # hdc blip / uitest dump fail — wait and one retry before giving up step
+            logger.warning(f"dump_sut_hierarchy failed: {e}; retry once")
+            time.sleep(1.5)
+            try:
+                h = self.dump_sut_hierarchy()
+            except Exception as e2:
+                logger.error(f"dump_sut_hierarchy retry failed: {e2}")
+                return "{}"
         h = _maybe_dismiss_overlay(self.d, self.hdc, h)
         # Weather/city picker etc.: no bottom tabs, has search/popular cities → Back to home chrome
         try:
@@ -430,9 +510,13 @@ class HarmonyExplorer:
             if self.throttle:
                 time.sleep(self.throttle)
         # Taps (esp. after hmdriver reconnect) can drop SUT; re-grab before precond dump.
-        h2 = self.dump_sut_hierarchy()
-        h2 = _maybe_dismiss_overlay(self.d, self.hdc, h2)
-        return json.dumps(h2, ensure_ascii=False)
+        try:
+            h2 = self.dump_sut_hierarchy()
+            h2 = _maybe_dismiss_overlay(self.d, self.hdc, h2)
+            return json.dumps(h2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"post-step dump failed: {e}")
+            return json.dumps(h or {}, ensure_ascii=False)
 
     def stopMonkey(self):
         logger.info("HarmonyExplorer stop")
