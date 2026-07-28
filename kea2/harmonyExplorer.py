@@ -125,6 +125,9 @@ def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int
             w -= 6
         if low in ("install", "update", "open", "get", "下载", "安装", "更新"):
             w -= 10
+        # bind-phone / password-reset sheets trap explore (baiinfo zero-exec)
+        if any(k in (text or "") for k in ("绑定手机", "忘记密码", "获取验证码", "Bind phone")):
+            w -= 12
         # Maps: Drive/导航 leaves bottom-nav shell (Mode B flake)
         if low in ("drive", "导航", "route", "go") or "drive" == low:
             w -= 6
