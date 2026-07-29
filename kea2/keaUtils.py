@@ -742,7 +742,11 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                 # live driver for property body
                 self.scriptDriver = HMDriver.getScriptDriver()
                 self.scriptDriver.setHierarchy(None)  # force live queries in rules
-                propertyName = random.choice(checkableProperties)
+                # Avoid re-picking the same tarpit prop (privacy/login) every step.
+                last_prop = getattr(self, "_harmony_last_prop", None)
+                candidates = [p for p in checkableProperties if p != last_prop] or checkableProperties
+                propertyName = random.choice(candidates)
+                self._harmony_last_prop = propertyName
                 prop_test = self.allProperties[propertyName]
                 result.addExcutedProperty(prop_test, self.stepsCount)
                 explorer.log_script_info(
@@ -769,6 +773,14 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                 )
                 explorer.executed_prop = True
                 result.flushResult()
+                # Always monkey AFTER a property. Dump-first + checkable tarpits
+                # (privacy/login always true) otherwise re-fire the same prop forever
+                # and never explore (privacy 100+ execs / 0 surface coverage).
+                # Android Fastbot advances via its own event stream; Harmony must.
+                try:
+                    explorer.stepMonkey(None)
+                except Exception as _e:
+                    logger.debug(f"post-property stepMonkey: {_e}")
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt — stopping Harmony run.")
         except Exception as e:
