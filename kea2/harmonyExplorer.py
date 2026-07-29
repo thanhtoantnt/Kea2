@@ -318,17 +318,29 @@ class HarmonyExplorer:
         return False
 
     def _looks_like_sut_content(self, texts: List[str]) -> bool:
-        """Hierarchy is clearly in-app (login/privacy/home), not launcher.
+        """Hierarchy is clearly in-app, not launcher.
 
-        is_package_foreground() sometimes false-negatives while dump still shows
-        SUT UI (baicizhan login: fg=False + 已阅读并同意 → false relaunch wiped sheet).
+        is_package_foreground() false-negatives while dump still shows SUT UI
+        (login sheets, video error pages). Prefer rich dump over FG API.
         """
         if len(texts) < 3:
             return False
+        launcher_markers = (
+            "AppGallery", "Settings", "设置", "Books", "Wallet", "GameCenter",
+            "Huawei Apps", "Theme Studio", "小艺建议", "Double-tap to activate",
+            "Touch & hold the time",
+        )
+        lhit = sum(1 for t in texts if any(m.lower() in t.lower() for m in launcher_markers))
+        if lhit >= 2:
+            return False
+        # ponytail: rich non-launcher tree = SUT (covers video/feed without marker list)
+        if len(texts) >= 6:
+            return True
         markers = (
             "登录", "注册", "验证码", "隐私", "同意", "用户协议", "密码",
             "首页", "我的", "搜索", "推荐", "Allow", "Deny", "Get started",
             "Log in", "Sign in", "Continue", "Skip", "+86", "获取验证码",
+            "加载失败", "刷新", "视频", "讨论", "播放", "追剧", "VIP",
         )
         hits = sum(1 for t in texts if any(m.lower() in t.lower() for m in markers))
         return hits >= 1 and len(texts) >= 4
