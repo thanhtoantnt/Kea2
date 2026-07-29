@@ -296,9 +296,12 @@ class HarmonyExplorer:
         """True if dump is OS home/recents, not the SUT window."""
         if not self.packages:
             return False
+        texts = self._content_texts(h)
+        # App content visible even if aa-dump FG flickers false (login/privacy sheets).
+        if self._looks_like_sut_content(texts):
+            return False
         if not self._sut_fg():
             return True
-        texts = self._content_texts(h)
         # Recent-apps strip often shows other app names while SUT is not really focused.
         # Generic home-screen chrome (was too app-specific → false relaunch thrash)
         launcher_markers = (
@@ -314,6 +317,22 @@ class HarmonyExplorer:
             return True
         return False
 
+    def _looks_like_sut_content(self, texts: List[str]) -> bool:
+        """Hierarchy is clearly in-app (login/privacy/home), not launcher.
+
+        is_package_foreground() sometimes false-negatives while dump still shows
+        SUT UI (baicizhan login: fg=False + 已阅读并同意 → false relaunch wiped sheet).
+        """
+        if len(texts) < 3:
+            return False
+        markers = (
+            "登录", "注册", "验证码", "隐私", "同意", "用户协议", "密码",
+            "首页", "我的", "搜索", "推荐", "Allow", "Deny", "Get started",
+            "Log in", "Sign in", "Continue", "Skip", "+86", "获取验证码",
+        )
+        hits = sum(1 for t in texts if any(m.lower() in t.lower() for m in markers))
+        return hits >= 1 and len(texts) >= 4
+
     def dump_sut_hierarchy(self) -> dict:
         """Dump hierarchy while SUT is FOREGROUND; relaunch if dump is launcherish.
 
@@ -322,12 +341,11 @@ class HarmonyExplorer:
         """
         last: dict = {}
         for attempt in range(6):
-            if not self._sut_fg():
-                logger.info(f"[Harmony] SUT not FOREGROUND (try {attempt}); start_apps")
-                self.start_apps()
-                time.sleep(2.0)
             last = self.d.dump_hierarchy() or {}
             texts = self._content_texts(last)
+            # Trust dump over FG API when content is clearly the SUT.
+            if self._looks_like_sut_content(texts) and not self._looks_launcherish(last):
+                return last
             if self._sut_fg() and not self._looks_launcherish(last):
                 return last
             # Empty / tiny dump while still FG: wait and re-dump (no relaunch yet).
@@ -335,6 +353,11 @@ class HarmonyExplorer:
                 logger.warning(
                     f"[Harmony] empty FG dump try={attempt} texts={len(texts)}; wait-paint"
                 )
+                time.sleep(2.0)
+                continue
+            if not self._sut_fg() and not self._looks_like_sut_content(texts):
+                logger.info(f"[Harmony] SUT not FOREGROUND (try {attempt}); start_apps")
+                self.start_apps()
                 time.sleep(2.0)
                 continue
             logger.warning(
