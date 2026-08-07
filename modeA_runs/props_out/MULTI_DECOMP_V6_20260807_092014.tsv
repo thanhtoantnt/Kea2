@@ -1,0 +1,14 @@
+pkg	out	steps	props	fired	fire_pct	execs	decomp_execs	fails	errors	crash	widgets
+com.amap.hmapp	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.amap.hmapp_multiv6_20260807_092014	59	24	17	70.8	58	31	0	0	0	15
+com.sankuai.dianping	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.sankuai.dianping_multiv6_20260807_092255	59	24	17	70.8	59	31	0	0	0	22
+com.zhihu.hmos	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.zhihu.hmos_multiv6_20260807_092536	59	24	12	50.0	58	41	0	0	0	21
+com.sina.weibo.stage	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.sina.weibo.stage_multiv6_20260807_092818	59	24	16	66.7	60	33	0	0	0	22
+com.sankuai.hmeituan	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.sankuai.hmeituan_multiv6_20260807_093026	59	24	12	50.0	59	42	0	0	0	31
+com.phoenix.read.next	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.phoenix.read.next_multiv6_20260807_093412	24	24	11	45.8	24	16	1	0	0	5
+com.youku.next	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.youku.next_multiv6_20260807_093934	59	24	10	41.7	57	43	0	0	0	3
+com.xunmeng.pinduoduo.hos	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.xunmeng.pinduoduo.hos_multiv6_20260807_094212	59	24	12	50.0	59	41	0	0	0	24
+com.kuaishou.hmapp	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.kuaishou.hmapp_multiv6_20260807_094404	59	24	11	45.8	60	41	0	0	0	33
+com.ss.hm.ugc.aweme	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.ss.hm.ugc.aweme_multiv6_20260807_094617	59	24	14	58.3	60	42	0	0	0	21
+com.huawei.hmos.calculator	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.huawei.hmos.calculator_multiv6_20260807_094835	59	23	17	73.9	60	49	0	0	0	15
+com.ctrip.harmonynext	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.ctrip.harmonynext_multiv6_20260807_095131	59	28	20	71.4	60	39	0	0	0	20
+com.taobao.idlefish4ohos	/Users/thanhtoantnt/github/Kea2/modeA_runs/props_out/com.taobao.idlefish4ohos_multiv6_20260807_095536	37	24	14	58.3	36	16	0	0	0	17
