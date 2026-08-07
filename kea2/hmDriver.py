@@ -110,25 +110,15 @@ class HMUiObject:
         """Poll until this selector exists. Alias of exists(timeout=...)."""
         return self.exists(timeout=timeout)
 
-    def click(self, settle: float = 1.0):
-        # Bounds-first live click + settle-until-hierarchy-changes (Music/Calendar
-        # body-after-tab races). settle=0 → min sleep only.
-        # Dismiss blocking sheets first so tab clicks actually switch pages (Music
-        # Premium PLUS overlay left tabs tappable but content frozen).
-        try:
-            self.driver.dismiss_blocking_sheets()
-        except Exception:
-            pass
+    def click(self, settle: float = 0.4):  # B8
+        # Bounds-first click on cached dump; no pre-click dismiss/bust thrash.
         prev = self.driver._hierarchy_fingerprint()
-        r = self.driver._live_click(self.selectors, retries=3)
-        self.driver._settle_after_action(prev_fp=prev, timeout=float(settle or 0))
-        try:
-            self.driver.dismiss_blocking_sheets(max_rounds=1)
-        except Exception:
-            pass
+        r = self.driver._live_click(self.selectors, retries=2)
+        self.driver._bust_live()  # after mutation only
+        self.driver._settle_after_action(prev_fp=prev, timeout=min(0.25, float(settle or 0)))
         return r
 
-    def click_then(self, *assert_texts: str, timeout: float = 2.0, settle: float = 1.2) -> bool:
+    def click_then(self, *assert_texts: str, timeout: float = 1.2, settle: float = 0.4) -> bool:
         """Click, then poll until any assert text exists. Raises AssertionError on miss."""
         self.click(settle=settle)
         deadline = time.time() + max(0.0, float(timeout or 0))
@@ -192,11 +182,19 @@ class HMDevice:
             ) from e
         logger.info(f"Connecting hmdriver2 to {self.serial} …")
         self._hm = Driver(self.serial)
-        time.sleep(1)
+        time.sleep(0.3)  # B8
+
+    def _bust_live(self):
+        """Invalidate short live dump cache after any UI mutation."""
+        self._live_h = None
+        self._live_h_ts = 0.0
 
     def setHierarchy(self, hierarchy: Any):
+        """None = live mode; non-None = static precond lock (no device dumps)."""
         if hierarchy is None:
+            self._static_locked = False
             self._hierarchy = None
+            self._bust_live()
             return
         if isinstance(hierarchy, str):
             try:
@@ -207,12 +205,22 @@ class HMDevice:
             self._hierarchy = hierarchy
         else:
             self._hierarchy = None
+        self._static_locked = self._hierarchy is not None
+
 
     def dump_hierarchy(self) -> dict:
-        # uitest sometimes returns empty/invalid JSON mid-transition (quark blank,
-        # app switch). Retry before treating as empty tree.
+        # Static precond lock — never re-hit device (B6 thrash fix)
+        if getattr(self, "_static_locked", False) and self._hierarchy is not None:
+            return self._hierarchy
+        # Live short-cache — fingerprint loops dump many× per prop (B7)
+        now = time.time()
+        live = getattr(self, "_live_h", None)
+        live_ts = getattr(self, "_live_h_ts", 0.0)
+        # 2.5s: props fire many exists/step; 0.7s still → 16+ dumps/step
+        if live is not None and (now - live_ts) < 2.5:
+            return live
         h: dict = {}
-        for attempt in range(3):
+        for attempt in range(2):  # B8: fewer empty retries
             raw = self._hm.dump_hierarchy()
             if isinstance(raw, str):
                 try:
@@ -223,31 +231,46 @@ class HMDevice:
             if h and (h.get("children") or h.get("attributes")):
                 break
             logger.warning(f"empty hierarchy dump try={attempt}; retry")
-            time.sleep(0.45)
+            time.sleep(0.2)
+        self._live_h = h
+        self._live_h_ts = time.time()
+        # keep _hierarchy for _find_all; unlocked so next dump can refresh
         self._hierarchy = h
-        return self._hierarchy
+        return h
+
 
     def app_current(self) -> dict:
         """Minimal parity with uiautomator2 — package currently FOREGROUND via aa dump."""
-        import subprocess, re
+        import subprocess, re, time as _t
+        # B6: 1.5s cache — aa dump -l is slow; preconds called it dozens/step
+        now = _t.time()
+        cache = getattr(self, "_app_cur_cache", None)
+        if cache and now - cache[0] < 1.5:
+            return cache[1]
         try:
             raw = subprocess.check_output(
                 f'hdc -t {self.serial} shell "aa dump -l"',
-                shell=True, text=True, timeout=15, stderr=subprocess.DEVNULL,
+                shell=True, text=True, timeout=8, stderr=subprocess.DEVNULL,
             )
         except Exception:
-            return {"package": None, "activity": None}
+            out = {"package": None, "activity": None}
+            self._app_cur_cache = (now, out)
+            return out
+        out = {"package": None, "activity": None}
         for b in raw.split("Mission ID"):
             if "#FOREGROUND" in b:
                 m = re.search(r"bundle name \[([^\]]+)\]", b)
                 a = re.search(r"main name \[([^\]]+)\]", b)
-                return {"package": m.group(1) if m else None, "activity": a.group(1) if a else None}
-        return {"package": None, "activity": None}
+                out = {"package": m.group(1) if m else None, "activity": a.group(1) if a else None}
+                break
+        self._app_cur_cache = (now, out)
+        return out
 
     def __call__(self, **kwargs) -> HMUiObject:
         return HMUiObject(self, kwargs)
 
     def click(self, x: int, y: int):
+        self._bust_live()
         # Coordinate tap — parity with the Android u2 driver (d.click(x,y)). Harmony
         # apps often have icon-only buttons (e.g. Calendar's '+') with no unique
         # text/description/type selector, so a property can only self-drive them by
@@ -256,6 +279,7 @@ class HMDevice:
         return self._click_xy(x, y)
 
     def swipe(self, x1: int, y1: int, x2: int, y2: int, speed: int = 600):
+        self._bust_live()
         """Coordinate swipe — parity with Android u2. Opaque-Web props used d.swipe and ERROR'd."""
         from .hdcUtils import HDCDevice
         # uitest: uiInput swipe x1 y1 x2 y2 [duration_ms]
@@ -350,14 +374,17 @@ class HMDevice:
                 pass
         return self._hm(**kw)
 
-    def _live_click(self, selectors: dict, retries: int = 3):
-        # Prefer dump→bounds→coordinate tap: survives selector index churn and
-        # mid-animation hmdriver2 misses better than bare obj.click().
+    def _live_click(self, selectors: dict, retries: int = 2):
+        # Prefer cached hierarchy → bounds tap. Dump at most once if cache miss.
         last = None
         for i in range(max(1, retries)):
             try:
                 try:
-                    self.dump_hierarchy()
+                    if self._hierarchy is None:
+                        self.dump_hierarchy()
+                    elif i > 0:
+                        self._bust_live()
+                        self.dump_hierarchy()
                     node = self._find_best_click(selectors)
                     if node is not None:
                         bounds = _parse_bounds(_attrs(node).get("bounds"))
@@ -369,7 +396,8 @@ class HMDevice:
                     last = e
                 # pin id from best match for hmdriver2 fallback
                 try:
-                    self.dump_hierarchy()
+                    if self._hierarchy is None:
+                        self.dump_hierarchy()
                     best = self._find_best_click(selectors)
                     if best is not None:
                         bid = str(_attrs(best).get("id") or "")
@@ -434,41 +462,11 @@ class HMDevice:
                 break
         return (len(list(_walk_nodes(root))), tuple(texts))
 
-    def _settle_after_action(self, prev_fp=None, timeout: float = 1.0):
-        """After click/tap: wait for hierarchy change or timeout.
+    def _settle_after_action(self, prev_fp=None, timeout: float = 0.25):
+        """After click/tap: sleep only — no dump polls (dumps burned steps)."""
+        time.sleep(0.15 if timeout and timeout > 0 else 0.05)
 
-        Music/Calendar Mode A: fixed sleep(0.5) was not enough for tab body;
-        also not too long when chrome-only. Min 0.25s always.
-        """
-        timeout = max(0.0, float(timeout or 0))
-        time.sleep(0.25)
-        if timeout <= 0.25:
-            try:
-                self.dump_hierarchy()
-            except Exception:
-                pass
-            return
-        deadline = time.time() + max(0.0, timeout - 0.25)
-        while time.time() < deadline:
-            try:
-                self.dump_hierarchy()
-                fp = self._hierarchy_fingerprint()
-                if prev_fp is not None and fp != prev_fp:
-                    time.sleep(0.12)  # brief stabilize after first change
-                    try:
-                        self.dump_hierarchy()
-                    except Exception:
-                        pass
-                    return
-            except Exception:
-                pass
-            time.sleep(0.15)
-        try:
-            self.dump_hierarchy()
-        except Exception:
-            pass
-
-    def dismiss_blocking_sheets(self, max_rounds: int = 3) -> int:
+    def dismiss_blocking_sheets(self, max_rounds: int = 1) -> int:
         """Dismiss membership/cast/player sheets that block tab content.
 
         Music: Premium PLUS / 0元开通 sheet leaves tabs visible but body stuck

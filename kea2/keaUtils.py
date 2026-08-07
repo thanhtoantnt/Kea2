@@ -122,7 +122,7 @@ class Options:
     # time(mins) for exploration
     running_mins: int = 10
     # time(ms) to wait when exploring the app
-    throttle: int = 200
+    throttle: int = 120  # B8 default
     # the output_dir for saving logs and results
     output_dir: str = "output"
     # the stamp for log file and result file, default: current time stamp
@@ -676,7 +676,7 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                     logger.info("[Harmony] SUT lost foreground (IME/other app); relaunching")
                     for _ in range(2):
                         explorer.start_apps()
-                        sleep(1.5)
+                        sleep(0.6)
                         if any(explorer.hdc.is_package_foreground(p) for p in sut_pkgs):
                             break
 
@@ -687,7 +687,7 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                 ):
                     for app in self.options.packageNames or []:
                         self.scriptDriver.app_stop(app)
-                    sleep(2)
+                    sleep(0.8)
                     explorer.start_apps()
                     self.stepsCount += 1
                     continue
@@ -704,6 +704,7 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                 if not hierarchy_raw:
                     logger.warning("Empty hierarchy; skip step.")
                     continue
+                # ponytail: skip sparse re-dump (was +1 dumpLayout/step)
 
                 result.setCurrentStepsCount(self.stepsCount)
                 staticCheckerDriver = HMDriver.getStaticChecker(hierarchy=hierarchy_raw)
@@ -739,38 +740,94 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                     explorer.stepMonkey(None)
                     continue
 
-                # live driver for property body
+                # live driver: seed cache from step dump (no extra device dump)
                 self.scriptDriver = HMDriver.getScriptDriver()
-                self.scriptDriver.setHierarchy(None)  # force live queries in rules
-                # Avoid re-picking the same tarpit prop (privacy/login) every step.
-                last_prop = getattr(self, "_harmony_last_prop", None)
-                candidates = [p for p in checkableProperties if p != last_prop] or checkableProperties
-                propertyName = random.choice(candidates)
-                self._harmony_last_prop = propertyName
-                prop_test = self.allProperties[propertyName]
-                result.addExcutedProperty(prop_test, self.stepsCount)
-                explorer.log_script_info(
-                    propertyName, "start", "property", steps=self.stepsCount
-                )
-                setattr(prop_test, self.options.driverName, self.scriptDriver)
                 try:
-                    prop_test(result)
-                finally:
-                    result.printError(prop_test)
-                result.updateExecutionInfo(prop_test)
-                explorer.executed_prop = True
-                result.flushResult()
-                # mirror property_exec_info state into steps.log for HTML report
-                state = "pass"
-                try:
-                    info = getattr(result, "lastPropertyInfo", None)
-                    if info is not None and getattr(info, "state", None):
-                        state = info.state
+                    import json as _json
+                    _seed = (
+                        _json.loads(hierarchy_raw)
+                        if isinstance(hierarchy_raw, str)
+                        else hierarchy_raw
+                    )
+                    self.scriptDriver.setHierarchy(None)
+                    if isinstance(_seed, dict) and _seed:
+                        self.scriptDriver._hierarchy = _seed
+                        self.scriptDriver._live_h = _seed
+                        # must match dump_hierarchy clock (time.time, not perf_counter)
+                        import time as _time
+                        self.scriptDriver._live_h_ts = _time.time()
+                        self.scriptDriver._static_locked = False
                 except Exception:
-                    pass
-                explorer.log_script_info(
-                    propertyName, state, "property", steps=self.stepsCount
-                )
+                    try:
+                        self.scriptDriver.setHierarchy(None)
+                    except Exception:
+                        pass
+                last_prop = getattr(self, "_harmony_last_prop", None)
+                # 1 prop/step while device dumpLayout 5–16s; raise when dumps <2s
+                ran_this_step = set()
+                for _prop_i in range(1):
+                    pool = [p for p in checkableProperties if p not in ran_this_step]
+                    if not pool:
+                        break
+                    candidates = [p for p in pool if p != last_prop] or pool
+                    weighted = []
+                    for p in candidates:
+                        low = p.lower()
+                        if "decompiled" in low or "ctrip_ctimage" in low or "calculator_decompiled" in low:
+                            w = 6
+                        elif "bug_find" in low or "flow" in low:
+                            w = 3
+                        elif "hunt" in low or "semantic" in low or "deep_hunt" in low:
+                            w = 2
+                        else:
+                            w = 1
+                        weighted.extend([p] * w)
+                    propertyName = random.choice(weighted)
+                    ran_this_step.add(propertyName)
+                    last_prop = propertyName
+                    self._harmony_last_prop = propertyName
+                    prop_test = self.allProperties[propertyName]
+                    result.addExcutedProperty(prop_test, self.stepsCount)
+                    explorer.log_script_info(
+                        propertyName, "start", "property", steps=self.stepsCount
+                    )
+                    setattr(prop_test, self.options.driverName, self.scriptDriver)
+                    try:
+                        prop_test(result)
+                    finally:
+                        result.printError(prop_test)
+                    result.updateExecutionInfo(prop_test)
+                    state = "pass"
+                    try:
+                        info = getattr(result, "lastPropertyInfo", None)
+                        if info is not None and getattr(info, "state", None):
+                            state = info.state
+                    except Exception:
+                        pass
+                    # on fail, log sample texts for triage
+                    if state == "fail":
+                        try:
+                            from .hmDriver import _walk_nodes, _attrs
+                            import json as _json
+                            # B6b: do NOT re-dump on fail (was multi-sec thrash)
+                            _hr = hierarchy_raw
+                            _h = _json.loads(_hr) if isinstance(_hr, str) else _hr
+                            _texts = []
+                            for _n in _walk_nodes(_h or {}):
+                                _t = str(_attrs(_n).get("text") or "").strip()
+                                if _t and _t not in _texts:
+                                    _texts.append(_t)
+                            logger.warning(
+                                f"[Harmony] prop FAIL {propertyName} fg_texts={_texts[:15]!r}"
+                            )
+                        except Exception:
+                            pass
+                    explorer.log_script_info(
+                        propertyName, state, "property", steps=self.stepsCount
+                    )
+                    explorer.executed_prop = True
+                    result.flushResult()
+                    # if first prop failed hard, still try second (bug hunt)
                 explorer.executed_prop = True
                 result.flushResult()
                 # Always monkey AFTER a property. Dump-first + checkable tarpits

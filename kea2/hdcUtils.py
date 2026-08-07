@@ -200,8 +200,14 @@ class HDCDevice:
         return out
 
     def package_installed(self, package: str) -> bool:
-        out = self.shell("bm dump -a")
-        return package in out
+        # hdc bm dump can flake empty under load — retry
+        for _ in range(3):
+            out = self.shell("bm dump -a") or ""
+            if package in out:
+                return True
+            import time as _t
+            _t.sleep(0.4)
+        return False
 
     def is_package_foreground(self, package: str) -> bool:
         # True iff <package> mission is FOREGROUND (per-block, not whole dump).

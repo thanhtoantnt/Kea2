@@ -248,7 +248,7 @@ def _maybe_dismiss_overlay(d: HMDevice, hdc: HDCDevice, hierarchy: dict) -> dict
                     d.go_back()
                 except Exception:
                     pass
-            time.sleep(0.5)
+            time.sleep(0.2)
             try:
                 return d.dump_hierarchy() or hierarchy
             except Exception:
@@ -325,15 +325,16 @@ class HarmonyExplorer:
         """
         if len(texts) < 3:
             return False
-        launcher_markers = (
-            "AppGallery", "Settings", "设置", "Books", "Wallet", "GameCenter",
+        # Only OS-home unique chrome — NOT in-app Settings/Wallet (Kuaishou 我 page
+        # has Settings+Wallet+AppGallery entry → was false-negative → relaunch thrash).
+        launcher_only = (
             "Huawei Apps", "Theme Studio", "小艺建议", "Double-tap to activate",
-            "Touch & hold the time",
+            "Touch & hold the time", "Celia Suggestions", "Set up in Weather app",
         )
-        lhit = sum(1 for t in texts if any(m.lower() in t.lower() for m in launcher_markers))
+        lhit = sum(1 for t in texts if any(m.lower() in t.lower() for m in launcher_only))
         if lhit >= 2:
             return False
-        # ponytail: rich non-launcher tree = SUT (covers video/feed without marker list)
+        # ponytail: rich non-launcher tree = SUT
         if len(texts) >= 6:
             return True
         markers = (
@@ -341,6 +342,7 @@ class HarmonyExplorer:
             "首页", "我的", "搜索", "推荐", "Allow", "Deny", "Get started",
             "Log in", "Sign in", "Continue", "Skip", "+86", "获取验证码",
             "加载失败", "刷新", "视频", "讨论", "播放", "追剧", "VIP",
+            "精选", "热点", "消息", "Trending", "Kwai", "草稿", "Drafts",
         )
         hits = sum(1 for t in texts if any(m.lower() in t.lower() for m in markers))
         return hits >= 1 and len(texts) >= 4
@@ -352,9 +354,33 @@ class HarmonyExplorer:
         poll before force-relaunch (relaunch thrash burned whole running-minutes).
         """
         last: dict = {}
-        for attempt in range(6):
+        for attempt in range(3):  # B8 fewer relaunch loops
+            # attempt0: use live cache if fresh; retry busts
+            if attempt > 0:
+                try:
+                    self.d.setHierarchy(None)
+                    self.d._bust_live()
+                except Exception:
+                    pass
             last = self.d.dump_hierarchy() or {}
             texts = self._content_texts(last)
+            # B6/B9: auth / guest overlays — specific labels only (no bare 取消)
+            joined = " ".join(texts)
+            for lab in (
+                "暂不认证", "随便看看", "暂不登录", "游客进入", "跳过登录",
+                "先逛逛", "先看看", "暂不切换",
+            ):
+                if lab in joined:
+                    try:
+                        if self.d(text=lab).exists():
+                            self.d(text=lab).click()
+                            time.sleep(0.2)
+                            last = self.d.dump_hierarchy() or {}
+                            texts = self._content_texts(last)
+                            joined = " ".join(texts)
+                            break
+                    except Exception:
+                        pass
             # Trust dump over FG API when content is clearly the SUT.
             if self._looks_like_sut_content(texts) and not self._looks_launcherish(last):
                 return last
@@ -365,19 +391,19 @@ class HarmonyExplorer:
                 logger.warning(
                     f"[Harmony] empty FG dump try={attempt} texts={len(texts)}; wait-paint"
                 )
-                time.sleep(2.0)
+                time.sleep(0.7)
                 continue
             if not self._sut_fg() and not self._looks_like_sut_content(texts):
                 logger.info(f"[Harmony] SUT not FOREGROUND (try {attempt}); start_apps")
                 self.start_apps()
-                time.sleep(2.0)
+                time.sleep(0.8)
                 continue
             logger.warning(
                 f"[Harmony] weak/launcher hierarchy try={attempt} "
                 f"fg={self._sut_fg()} texts={len(texts)} sample={texts[:8]!r}; relaunch"
             )
             self.start_apps()
-            time.sleep(2.5)
+            time.sleep(1.0)
         return last or self.d.dump_hierarchy() or {}
 
     def dumpHierarchy(self) -> str:
@@ -478,7 +504,7 @@ class HarmonyExplorer:
         except Exception as e:
             # hdc blip / uitest dump fail — wait and one retry before giving up step
             logger.warning(f"dump_sut_hierarchy failed: {e}; retry once")
-            time.sleep(1.5)
+            time.sleep(0.4)  # B8
             try:
                 h = self.dump_sut_hierarchy()
             except Exception as e2:
@@ -504,7 +530,7 @@ class HarmonyExplorer:
             ):
                 logger.info("[Harmony] city-picker/subpage without tabs — Back")
                 self.hdc.shell("uitest uiInput keyEvent Back")
-                time.sleep(0.5)
+                time.sleep(0.2)
                 h = self.dump_sut_hierarchy()
         except Exception:
             pass
@@ -516,7 +542,7 @@ class HarmonyExplorer:
                 self.hdc.shell("uitest uiInput keyEvent Back")
             except Exception:
                 pass
-            time.sleep(0.6)
+            time.sleep(0.25)
             h = self.dump_sut_hierarchy()
         cands = _clickable_candidates(h)
         if cands:
