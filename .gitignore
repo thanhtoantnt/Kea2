@@ -36,3 +36,7 @@ modeA_runs/decompile_exp/**/out/
 modeA_runs/decompile_exp/**/*.abc
 modeA_runs/decompile_exp/**/hap/
 .pi/
+
+# never track unlock secrets or run logs that may contain them
+modeA_runs/**/console.log
+modeA_runs/**/kea.log

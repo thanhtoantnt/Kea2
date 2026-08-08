@@ -84,7 +84,7 @@ class HDCDevice:
             )
             return (r.stdout or "") + (r.stderr or "")
         except subprocess.TimeoutExpired:
-            logger.warning(f"hdc shell timeout: {cmd[:80]}")
+            logger.warning(f"hdc shell timeout: {self._redact_cmd(cmd)[:80]}")
             return ""
 
     def force_stop(self, package: str) -> None:
@@ -94,11 +94,69 @@ class HDCDevice:
         """Single-quote for device /bin/sh (handles paren in passwords)."""
         return "'" + s.replace("'", "'\\''") + "'"
 
-    def unlock(self) -> None:
-        """Wake + swipe OS lock; password via KEA2_UNLOCK_PASSWORD.
+    def _redact_cmd(self, cmd: str) -> str:
+        """Never log unlock secrets (inputText / env password)."""
+        import os
+        import re
 
-        Also detects Huawei sample-management clock-in wall (not phone lock).
-        Sample password is SEPARATE — do not burn attempts with phone pwd.
+        out = re.sub(
+            r"(uiInput\s+inputText\s+\d+\s+\d+\s+)\S+",
+            r"\1***",
+            cmd,
+        )
+        out = re.sub(r"(uiInput\s+text\s+)\S+", r"\1***", out)
+        pwd = os.environ.get("KEA2_UNLOCK_PASSWORD") or ""
+        if pwd:
+            out = out.replace(pwd, "***")
+            out = out.replace(self._sh_quote(pwd), "***")
+        sp = os.environ.get("KEA2_SAMPLE_PASSWORD") or ""
+        if sp:
+            out = out.replace(sp, "***")
+            out = out.replace(self._sh_quote(sp), "***")
+        return out
+
+    def _looks_os_lock(self, joined: str, raw: str) -> bool:
+        """True only for phone OS lock / password pad — never Notes or apps.
+
+        Strict phrases only. Bare 'password'/'pin' match too many apps.
+        """
+        # exact-ish lock chrome (substring on joined lower texts)
+        phrases = (
+            "enter password",
+            "enter your password",
+            "输入密码",
+            "请输入密码",
+            "swipe up to unlock",
+            "上滑解锁",
+            "draw your pattern",
+            "绘制图案",
+        )
+        if any(p in joined for p in phrases):
+            return True
+        low = raw.lower()
+        # system lock packages / secure pad widgets in hierarchy
+        lock_pkg = (
+            "com.android.systemui",
+            "com.huawei.systemui",
+            "com.ohos.sceneboard",
+            "keyguard",
+            "lockscreen",
+            "lock_screen",
+        )
+        if any(p in low for p in lock_pkg) and (
+            "securefield" in low
+            or '"type":"pin"' in low
+            or "inputtype\"password" in low
+            or "password" in low
+        ):
+            return True
+        return False
+
+    def unlock(self) -> None:
+        """Wake + swipe. Type KEA2_UNLOCK_PASSWORD only on confirmed OS lock.
+
+        - unlocked app UI → wake/swipe only, never type password
+        - sample-management wall → KEA2_SAMPLE_PASSWORD only (not phone pwd)
         """
         import os
         import re
@@ -110,26 +168,32 @@ class HDCDevice:
         self.shell("uitest uiInput swipe 540 2200 540 600 350", timeout=8)
         _t.sleep(0.35)
 
-        # peek UI — sample lock vs OS lock vs already open
         self.shell("uitest dumpLayout -p /data/local/tmp/kea_unlock.json", timeout=20)
         raw = self.shell("cat /data/local/tmp/kea_unlock.json", timeout=15) or ""
         texts = re.findall(r'"text"\s*:\s*"([^"]+)"', raw)
         joined = " ".join(texts).lower()
 
-        pwd = os.environ.get("KEA2_UNLOCK_PASSWORD") or ""
+        # sample clock-in is NOT phone lock — separate password realm
         if "sample has been locked" in joined or (
             "clock in" in joined and "n00965569" in " ".join(texts)
         ):
-            # Huawei sample-management clock-in (same password as phone, but MUST clear field)
-            if pwd:
-                self._sample_clock_in(pwd, raw)
+            sp = os.environ.get("KEA2_SAMPLE_PASSWORD") or ""
+            if sp:
+                self._sample_clock_in(sp, raw)
             else:
-                logger.warning("[unlock] sample lock wall but no KEA2_UNLOCK_PASSWORD")
+                logger.warning(
+                    "[unlock] sample clock-in wall — set KEA2_SAMPLE_PASSWORD "
+                    "or clock in manually (will not use phone unlock password)"
+                )
             return
 
-        if not pwd:
+        # phone password ONLY on confirmed OS lock UI
+        if not self._looks_os_lock(joined, raw):
             return
-        # OS lock password field — clear then type (quote-safe for '(')
+        pwd = os.environ.get("KEA2_UNLOCK_PASSWORD") or ""
+        if not pwd:
+            logger.warning("[unlock] OS lock pad visible but no KEA2_UNLOCK_PASSWORD")
+            return
         qp = self._sh_quote(pwd)
         for x, y in ((640, 1400), (640, 1600), (427, 1202)):
             self._clear_and_type(x, y, qp)
