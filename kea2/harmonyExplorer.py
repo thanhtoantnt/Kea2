@@ -350,12 +350,18 @@ class HarmonyExplorer:
     def dump_sut_hierarchy(self) -> dict:
         """Dump hierarchy while SUT is FOREGROUND; relaunch if dump is launcherish.
 
-        Browser/hybrid late paint: empty dump while FG is normal for a few seconds —
-        poll before force-relaunch (relaunch thrash burned whole running-minutes).
+        Hard budget ~20s — unlock once + at most one relaunch. Old 3× unlock+relaunch
+        loops burned whole --running-minutes (dianping 774s step).
         """
+        t0 = time.time()
+        budget_s = 20.0
         last: dict = {}
-        for attempt in range(3):  # B8 fewer relaunch loops
-            # attempt0: use live cache if fresh; retry busts
+        unlocked = False
+        relaunched = False
+        for attempt in range(2):  # hard cap 2 dumps
+            if time.time() - t0 > budget_s:
+                logger.warning("[Harmony] dump_sut budget exhausted; return last")
+                break
             if attempt > 0:
                 try:
                     self.d.setHierarchy(None)
@@ -364,47 +370,45 @@ class HarmonyExplorer:
                     pass
             last = self.d.dump_hierarchy() or {}
             texts = self._content_texts(last)
-            # B6/B9: auth / guest overlays — specific labels only (no bare 取消)
             joined = " ".join(texts)
             for lab in (
                 "暂不认证", "随便看看", "暂不登录", "游客进入", "跳过登录",
-                "先逛逛", "先看看", "暂不切换",
+                "先逛逛", "先看看", "暂不切换", "Skip", "Close",
             ):
                 if lab in joined:
                     try:
                         if self.d(text=lab).exists():
                             self.d(text=lab).click()
-                            time.sleep(0.2)
+                            time.sleep(0.15)
                             last = self.d.dump_hierarchy() or {}
                             texts = self._content_texts(last)
                             joined = " ".join(texts)
                             break
                     except Exception:
                         pass
-            # Trust dump over FG API when content is clearly the SUT.
             if self._looks_like_sut_content(texts) and not self._looks_launcherish(last):
                 return last
-            if self._sut_fg() and not self._looks_launcherish(last):
+            if self._sut_fg() and not self._looks_launcherish(last) and len(texts) >= 3:
                 return last
-            # Empty / tiny dump while still FG: wait and re-dump (no relaunch yet).
-            if self._sut_fg() and len(texts) <= 2 and attempt < 5:
-                logger.warning(
-                    f"[Harmony] empty FG dump try={attempt} texts={len(texts)}; wait-paint"
-                )
-                time.sleep(0.7)
-                continue
-            if not self._sut_fg() and not self._looks_like_sut_content(texts):
-                logger.info(f"[Harmony] SUT not FOREGROUND (try {attempt}); start_apps")
-                self.start_apps()
-                time.sleep(0.8)
-                continue
+            # Empty/thin or not FG: unlock once, relaunch once, then give up
             logger.warning(
-                f"[Harmony] weak/launcher hierarchy try={attempt} "
-                f"fg={self._sut_fg()} texts={len(texts)} sample={texts[:8]!r}; relaunch"
+                f"[Harmony] weak dump try={attempt} texts={len(texts)} "
+                f"fg={self._sut_fg()} sample={texts[:6]!r}"
             )
-            self.start_apps()
-            time.sleep(1.0)
-        return last or self.d.dump_hierarchy() or {}
+            if not unlocked:
+                try:
+                    self.hdc.unlock()
+                    unlocked = True
+                except Exception:
+                    pass
+                time.sleep(0.2)
+            if not relaunched:
+                self.start_apps()
+                relaunched = True
+                time.sleep(0.5)
+                continue
+            break
+        return last or {}
 
     def dumpHierarchy(self) -> str:
         h = self.dump_sut_hierarchy()

@@ -24,11 +24,11 @@ logger = getLogger(__name__)
 
 # Hilog / faultlogger signatures observed on HarmonyOS NEXT
 _CRASH_LINE = re.compile(
-    r"(JsError|JSERROR|JS Crash|js crash|Fatal error|FATAL EXCEPTION|"
+    r"(JsError|JSERROR|JS Crash|js crash|jscrash|Fatal error|FATAL EXCEPTION|"
     r"appfreeze|APP_INPUT_BLOCK|Process dump|FaultLogger|"
     r"cppcrash|SIGNAL\s*\d+|SIGABRT|SIGSEGV|"
     r"NullPointerException|Error name:|Error message:|"
-    r"ace_engine|ArkCompiler|HasCrashed)",
+    r"Stack overflow|RangeError|ace_engine|ArkCompiler|HasCrashed)",
     re.I,
 )
 _ANR_LINE = re.compile(
@@ -54,8 +54,11 @@ class HarmonyLogWatcher:
         self.has_crash_or_anr = False
         self.end_flag = False
         self._seen: Set[str] = set()
+        self._seen_fault_files: Set[str] = set()
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
+        # only treat faultlogger files newer than watcher start as this-run crashes
+        self._started_at = time.time()
         self.crash_dump_path.parent.mkdir(parents=True, exist_ok=True)
         # ponytail: do NOT touch empty crash-dump.log — report treats missing file as "No crash"
 
@@ -106,39 +109,57 @@ class HarmonyLogWatcher:
             return ""
 
     def _faultlogger_snip(self) -> str:
-        """Best-effort pull recent faultlogger entries for SUT."""
+        """Pull *new* faultlogger files for SUT (mtime after watcher start)."""
         if not self.packages:
             return ""
-        # list recent fault files mentioning package
         out = ""
         try:
             bin_ = _hdc_bin()
+            # name + epoch mtime; head enough for multi-app noise
             ls = subprocess.run(
                 [
                     bin_,
                     "-t",
                     self.serial,
                     "shell",
-                    "ls -t /data/log/faultlog/faultlogger 2>/dev/null | head -n 8",
+                    "cd /data/log/faultlog/faultlogger 2>/dev/null && "
+                    "ls -t 2>/dev/null | head -n 20 | while read f; do "
+                    "stat -c '%Y %n' \"$f\" 2>/dev/null || stat -f '%m %N' \"$f\" 2>/dev/null; "
+                    "done",
                 ],
                 capture_output=True,
                 text=True,
                 errors="replace",
-                timeout=10,
+                timeout=12,
             )
-            names = [x.strip() for x in (ls.stdout or "").splitlines() if x.strip()]
-            for name in names[:5]:
-                if self.packages and not any(p.replace(".", "")[:12] in name or p in name for p in self.packages):
-                    # still read if name is generic jscrash/cppcrash
-                    if not re.search(r"jscrash|cppcrash|appfreeze|jserror", name, re.I):
-                        continue
+            rows = []
+            for line in (ls.stdout or "").splitlines():
+                parts = line.strip().split(None, 1)
+                if len(parts) != 2:
+                    continue
+                try:
+                    mt = float(parts[0])
+                except ValueError:
+                    continue
+                rows.append((mt, parts[1].strip()))
+            # grace: files from 30s before start (cold-start race)
+            cutoff = self._started_at - 30
+            for mt, name in rows[:12]:
+                if name in self._seen_fault_files:
+                    continue
+                if mt < cutoff:
+                    continue
+                pkg_hit = any(p in name for p in self.packages)
+                kind_hit = bool(re.search(r"jscrash|cppcrash|appfreeze|jserror", name, re.I))
+                if not pkg_hit and not kind_hit:
+                    continue
                 cat = subprocess.run(
                     [
                         bin_,
                         "-t",
                         self.serial,
                         "shell",
-                        f"head -n 80 /data/log/faultlog/faultlogger/{name} 2>/dev/null",
+                        f"head -n 120 /data/log/faultlog/faultlogger/{name} 2>/dev/null",
                     ],
                     capture_output=True,
                     text=True,
@@ -146,8 +167,12 @@ class HarmonyLogWatcher:
                     timeout=10,
                 )
                 body = cat.stdout or ""
-                if body and any(p in body for p in self.packages):
-                    out += f"\n// faultlogger:{name}\n{body}\n"
+                if not body:
+                    continue
+                if self.packages and not any(p in body or p in name for p in self.packages):
+                    continue
+                self._seen_fault_files.add(name)
+                out += f"\n// faultlogger:{name}\n{body}\n"
         except Exception as e:
             logger.debug(f"faultlogger snip: {e}")
         return out

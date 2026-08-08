@@ -181,6 +181,7 @@ def dismiss_noise(d) -> None:
         "我知道了",
         "知道了",
         "跳过",
+        "Skip",  # weibo/KFC interstitial EN
         "下次再说",
         "稍后再说",
         "暂不认证",

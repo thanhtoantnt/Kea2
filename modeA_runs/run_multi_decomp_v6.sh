@@ -25,12 +25,11 @@ packs_for() {
     *) echo "properties.modeA_props.decompiled properties.modeA_props.bug_find properties.modeA_props.flow";;
   esac
 }
-# login-wall / region-gated dropped: idlefish (HK), phoenix (login tarpit)
+# dropped: idlefish (HK), phoenix (login), calculator (well-tested)
 QUEUE=(
   com.amap.hmapp com.sankuai.dianping com.zhihu.hmos com.sina.weibo.stage
   com.sankuai.hmeituan com.youku.next com.xunmeng.pinduoduo.hos
-  com.kuaishou.hmapp com.ss.hm.ugc.aweme com.huawei.hmos.calculator
-  com.ctrip.harmonynext
+  com.kuaishou.hmapp com.ss.hm.ugc.aweme com.ctrip.harmonynext
 )
 score() {
   local pkg="$1" out="$2"

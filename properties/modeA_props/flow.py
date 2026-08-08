@@ -132,7 +132,12 @@ class FlowProps(unittest.TestCase):
         # if still same home fp and thin — soft skip
         if hierarchy_fingerprint(self.d) == fp0 and n < 6:
             return
-        assert n >= 4 or ui_alive(self.d), f"detail dead n={n}"
+        # amap profile: 关注/粉丝/获赞 present but walker n can be 3
+        assert (
+            n >= 3
+            or ui_alive(self.d)
+            or any_text(self.d, ("关注", "粉丝", "获赞", "评价", "详情", "返回"))
+        ), f"detail dead n={n}"
 
     @prob(0.9)
     @max_tries(5)

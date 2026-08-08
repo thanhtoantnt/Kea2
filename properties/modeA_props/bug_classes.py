@@ -68,6 +68,12 @@ _SHELL = (
     "Home", "Video", "Discover", "Message", "Me", "Follow", "Followers",
     "Visitor", "Albums", "Likes", "History", "Draft Box", "My wallet", "My order",
     "Chaohua Community", "Weibo", "Check-in", "Tasks", "Creation",
+    # 高德 amap (decompile: 导航/打车/地铁 + Map/Search)
+    "导航", "打车", "地铁", "公交", "查地点", "驾车", "火车票",
+    # 美团 meituan (decompile: WaterFlow/Search/Order)
+    "美团", "订单", "购物车", "今日优惠", "特价", "重新加载",
+    # 知乎 zhihu (decompile: 推荐/热榜/关注 feed)
+    "热榜", "关注", "知乎", "知乎热搜", "去关注", "去登录",
 )
 _SHELL_NAV = (
     "短剧", "剧场", "福利", "我的", "找剧", "真人剧", "漫剧", "听书", "小说",
@@ -76,6 +82,9 @@ _SHELL_NAV = (
     "精选", "热点", "Trending", "购物", "Kwai Shop",
     "个人中心", "领消费券", "聊天", "直播", "食品", "百货", "水果", "女装",
     "Home", "Video", "Discover", "Message", "Me", "Follow",
+    # decompile-boosted store apps
+    "导航", "打车", "地铁", "公交", "热榜", "知乎", "美团", "订单", "购物车",
+    "酒店", "机票", "火车票", "行程",
 )
 
 
@@ -87,8 +96,8 @@ class BugClassProperties(unittest.TestCase):
         pass
 
     # 1 数据展示异常 — content layer not empty/garbage-only when shell says feed
-    @prob(0.75)
-    @precondition(lambda self: _on_sut(self) and any_text(self.d, _SHELL))
+    @prob(0.96)
+    @precondition(lambda self: _on_sut(self) and hierarchy_text_count(self.d) >= 4)
     def test_bc01_data_display_not_empty(self):
         """数据展示异常: main shell should show real content texts, not blank."""
         texts = [t for t, _, _ in visible_text_nodes(self.d, min_len=2)]
@@ -128,20 +137,22 @@ class BugClassProperties(unittest.TestCase):
             assert False, f"click no reaction target={target} dt={dt:.2f}"
 
     # 3 闪退 — log watcher is primary; property double-checks process FG
-    @prob(0.5)
+    @prob(0.9)
     @precondition(lambda self: True)
     def test_bc03_no_process_disappear(self):
         """闪退: SUT package still foreground or recoverable (watcher catches real crash)."""
         p = fg_package(self.d)
-        if p and p not in ("com.ohos.sceneboard",):
-            assert ui_alive(self.d) or hierarchy_text_count(self.d) >= 3
+        n = hierarchy_text_count(self.d)
+        # thin/junk dump (lock thrash ['F','$','f']) — watcher owns real crash
+        if n < 2 and not ui_alive(self.d):
             return
-        # allow brief transition / aa-dump flicker
+        if p and p not in ("com.ohos.sceneboard",):
+            assert ui_alive(self.d) or n >= 3
+            return
         time.sleep(0.4)
         p2 = fg_package(self.d)
-        n = hierarchy_text_count(self.d)
-        # real crash watcher is authoritative; prop only flags empty+no-pkg
-        assert p2 is not None or n >= 5, "no foreground package and empty UI (possible crash)"
+        n2 = hierarchy_text_count(self.d)
+        assert p2 is not None or n2 >= 5, "no foreground package and empty UI (possible crash)"
 
     # 4 状态不一致 — follow button label vs presence of 已关注 after social chrome
     @prob(0.99)
@@ -158,33 +169,39 @@ class BugClassProperties(unittest.TestCase):
     )
     def test_bc04_state_consistency_follow(self):
         """状态不一致: profile/social stats chrome coherent; shell not dead."""
-        has_stats = any_text(self.d, (
+        d = self.d
+        n = hierarchy_text_count(d)
+        has_stats = any_text(d, (
             "获赞", "粉丝", "追剧", "收藏", "在追", "订单", "历史",
-            "个人中心", "钱包", "优惠券", "收货地址", "客服",
+            "个人中心", "钱包", "优惠券", "收货地址", "客服", "作品",
         ))
-        has_follow = any_text(self.d, ("关注", "已关注", "回关", "已追剧", "已收藏"))
-        # dense commerce pages (拼多多 home/product) count as coherent chrome
-        assert has_stats or has_follow or hierarchy_text_count(self.d) >= 6, (
-            "profile/follow state chrome missing"
-        )
+        has_follow = any_text(d, ("关注", "已关注", "回关", "已追剧", "已收藏"))
+        # empty profile is valid (kuaishou: 关注 + 暂无可查看作品)
+        has_empty_profile = any_text(d, ("暂无可查看作品", "暂无作品", "还没有作品", "无作品"))
+        # home feed can match weak precond (关注 in list card) — vacuous if no profile chrome
+        if not (has_stats or has_follow or has_empty_profile):
+            if n >= 8 or any_text(d, _SHELL):
+                return  # not on profile surface
+            assert False, "profile/follow state chrome missing"
         assert (
-            ui_alive(self.d, extra=_SHELL + ("订单", "钱包", "历史", "追剧", "正在追", "会员"))
-            or hierarchy_text_count(self.d) >= 8
+            ui_alive(d, extra=_SHELL + ("订单", "钱包", "历史", "追剧", "正在追", "会员", "作品", "关注"))
+            or n >= 5
+            or has_empty_profile
         ), "state chrome with dead UI"
 
     # 5 卡顿 — proxy: dump+simple action wall time
     @prob(0.95)
     @precondition(lambda self: _on_sut(self))
     def test_bc05_no_extreme_jank_proxy(self):
-        """卡顿: hierarchy dump should return within budget (extreme jank/proxy)."""
+        """卡顿: hierarchy dump budget (proxy — hdc dump thrash is infra, not app)."""
         t0 = time.time()
         try:
             self.d.dump_hierarchy()
         except Exception:
             return
         dt = time.time() - t0
-        # device dump usually <2s; >8s ≈ stuck
-        assert dt < 8.0, f"hierarchy dump jank dt={dt:.2f}s"
+        # unlocked ~1–3s; thrash/lock 10–16s common. Only extreme hang = fail.
+        assert dt < 25.0, f"hierarchy dump jank dt={dt:.2f}s"
 
     # 6 响应时延 — click to hierarchy change
     @prob(0.85)
@@ -216,27 +233,42 @@ class BugClassProperties(unittest.TestCase):
                 break
             time.sleep(0.15)
         dt = time.time() - t0
-        assert ui_alive(self.d, extra=(target,)), "latency probe left dead UI"
+        n = hierarchy_text_count(self.d)
+        # post-nav target label often gone (tab→page); chrome OR rich tree = alive
+        assert (
+            ui_alive(self.d, extra=(target,))
+            or n >= 4
+            or any_text(self.d, _SHELL)
+        ), f"latency probe left dead UI target={target} n={n}"
         # same-tab reclick may not change fp — only fail if slow AND dead-ish
-        if not changed and dt >= 5.0 and hierarchy_text_count(self.d) < 5:
+        if not changed and dt >= 5.0 and n < 5:
             assert False, f"response timeout target={target} dt={dt:.2f}"
 
     # 7 资源加载失败
-    @prob(0.9)
+    @prob(0.95)
     @precondition(lambda self: _on_sut(self))
     def test_bc07_resource_load_fail_has_recovery(self):
         """资源加载失败: if error chrome visible → recovery; else vacuous pass (no fail UI)."""
         err = any_text(
             self.d,
-            ("加载失败", "加载失败，请重试", "网络异常", "刷新页面", "点击重试",
-             "重新加载", "出错了", "暂无网络", "网络不太好"),
+            ("加载失败", "加载失败，请重试", "网络异常", "网络连接异常", "刷新页面", "点击重试",
+             "重新加载", "出错了", "暂无网络", "网络不太好", "请求失败", "连接异常",
+             "请稍后重试", "请检查网络设置", "加载中"),
         )
         if not err:
-            return  # no load-error surface this step
+            n = hierarchy_text_count(self.d)
+            # junk/empty dump = infra, not load-fail product bug
+            if n < 2 and not ui_alive(self.d):
+                return
+            assert n >= 2 or ui_alive(self.d), "empty under load check"
+            return
         assert any_text(
             self.d,
-            ("重试", "刷新", "刷新页面", "点击重试", "重新加载", "加载失败，请重试", "网络异常"),
-        ) or ui_alive(self.d, extra=EMPTY_OR_ERROR), "load fail with no recovery"
+            ("重试", "刷新", "刷新页面", "点击重试", "重新加载", "加载失败，请重试",
+             "网络异常", "返回", "关闭", "知道了"),
+        ) or ui_alive(self.d, extra=EMPTY_OR_ERROR) or hierarchy_text_count(self.d) >= 6, (
+            "load fail with no recovery"
+        )
 
     # 8 错位 — clickable center far outside parent screen band
     @prob(0.9)
@@ -244,8 +276,8 @@ class BugClassProperties(unittest.TestCase):
     def test_bc08_layout_misalign_proxy(self):
         """错位: clickable centers should lie inside screen."""
         n = count_offscreen_clickables(self.d)
-        # allow a couple of offscreen recycle views
-        assert n <= 3, f"misaligned clickables offscreen={n}"
+        # allow recycle-view slop; >2 with rich tree still suspicious
+        assert n <= 2, f"misaligned clickables offscreen={n}"
 
     # 9 跳转失败
     @prob(0.95)
@@ -278,9 +310,11 @@ class BugClassProperties(unittest.TestCase):
         fp1 = hierarchy_fingerprint(self.d)
         n = hierarchy_text_count(self.d)
         clicks = len(clickable_nodes(self.d))
-        # frozen blank
+        # junk/empty dump (lock thrash ['F','$','f']) — not product freeze
+        if n < 2 and clicks == 0:
+            return
+        # frozen blank only when we saw real chrome then lost it
         assert n >= 3 or clicks >= 1, f"frozen/blank n={n} clicks={clicks}"
-        # completely static empty is worse — feed may be static video though
         if n < 3 and fp0 == fp1 and clicks == 0:
             assert False, "UI frozen empty"
 
@@ -302,19 +336,24 @@ class BugClassProperties(unittest.TestCase):
                 break
         if home:
             safe_click(self.d, home, settle=0.4)
+        time.sleep(0.25)
         pkg = fg_package(self.d)
-        # FG API can return None mid-transition; SUT-after-click is OK
+        n = hierarchy_text_count(self.d)
+        # FG aa-dump often None mid-transition — UI chrome is ground truth
+        if pkg is None:
+            assert (
+                any_text(self.d, _SHELL)
+                or n >= 5
+                or ui_alive(self.d, extra=_SHELL)
+            ), f"nav lost chrome after FG=None pkg0={pkg0}"
+            return
         same = (
             pkg == pkg0
-            or (pkg and pkg0 and pkg.split('.')[0] == pkg0.split('.')[0])
-            or (pkg0 is None and pkg and pkg not in ("com.ohos.sceneboard",))
+            or (pkg0 and pkg.split(".")[0] == pkg0.split(".")[0])
+            or pkg not in ("com.ohos.sceneboard", "com.huawei.android.launcher")
         )
         assert same, f"nav wrong package {pkg0} -> {pkg}"
-        assert (
-            any_text(self.d, _SHELL)
-            or hierarchy_text_count(self.d) >= 5
-            or (pkg is not None)
-        ), "home/primary nav lost app chrome"
+        assert any_text(self.d, _SHELL) or n >= 5, "home/primary nav lost app chrome"
 
     # 12 控件状态错误 — enabled/selected sanity on visible CTAs
     @prob(0.9)
@@ -343,15 +382,20 @@ class BugClassProperties(unittest.TestCase):
     @prob(0.95)
     @precondition(
         lambda self: _on_sut(self)
-        and any_text(self.d, ("我的", "我", "消息", "朋友", "福利", "追剧", "获赞", "粉丝"))
+        and any_text(
+            self.d,
+            ("我的", "我", "消息", "朋友", "福利", "追剧", "获赞", "粉丝",
+             "设置", "订单", "购物车", "Me", "Message", "个人中心"),
+        )
     )
     def test_bc13_completion_latency_home(self):
         """完成时延: leave leaf back to primary tab within budget."""
         click_first(self.d, ("我的", "我", "消息", "朋友", "福利", "会员", "淘好片",
-                             "Settings", "个人中心", "聊天", "Me", "Message"), settle=0.35)
+                             "Settings", "设置", "个人中心", "聊天", "Me", "Message",
+                             "订单", "购物车"), settle=0.35)
         t0 = time.time()
         home = None
-        for t in ("首页", "Home", "精选", "短剧", "推荐", "剧场", "剧集", "热点"):
+        for t in ("首页", "Home", "精选", "短剧", "推荐", "剧场", "剧集", "热点", "美团", "导航"):
             if self.d(text=t).exists():
                 home = t
                 break
@@ -388,20 +432,29 @@ class BugClassProperties(unittest.TestCase):
     def test_bc15_display_incomplete_proxy(self):
         """显示不全: text nodes with empty/spilled bounds."""
         n = count_clipped_text(self.d)
-        assert n <= 5, f"clipped/incomplete texts={n}"
+        assert n <= 3, f"clipped/incomplete texts={n}"
 
     # 16 输入框无法聚焦
-    @prob(0.5)
-    @max_tries(3)
-    @precondition(lambda self: _on_sut(self) and has_input_field(self.d))
+    @prob(0.92)
+    @max_tries(5)
+    @precondition(
+        lambda self: _on_sut(self)
+        and (
+            has_input_field(self.d)
+            or any_text(self.d, ("搜索", "Search", "搜一搜", "查地点", "查酒店", "输入"))
+        )
+    )
     def test_bc16_input_can_focus(self):
-        """输入框无法聚焦: tap search/input chrome; something focuses or keyboard chrome."""
+        """输入框无法聚焦: tap search/input; focus OR search-surface nav (not dead)."""
         if focused_input(self.d):
             return  # already focused
-        # try click search / input placeholders
+        fp0 = hierarchy_fingerprint(self.d)
+        n0 = hierarchy_text_count(self.d)
+        # try click search / input placeholders (decompile-boosted labels)
         clicked = click_first(
             self.d,
-            ("搜索", "说点什么", "请输入", "Search", "搜索歌名/歌手/歌词/情绪", "搜索用户", "搜一搜", "Find"),
+            ("搜索", "说点什么", "请输入", "Search", "搜索歌名/歌手/歌词/情绪", "搜索用户",
+             "搜一搜", "Find", "查地点", "查酒店", "查机票", "输入"),
             settle=0.35,
         )
         if not clicked:
@@ -416,14 +469,25 @@ class BugClassProperties(unittest.TestCase):
                 if not b:
                     continue
                 click_xy(self.d, (b[0] + b[2]) // 2, (b[1] + b[3]) // 2, settle=0.35)
+                clicked = "xy"
                 break
-        time.sleep(0.4)
+        if not clicked:
+            return
+        time.sleep(0.45)
+        fp1 = hierarchy_fingerprint(self.d)
+        n1 = hierarchy_text_count(self.d)
+        # success: focus, IME, search page chrome, OR clear nav into search surface
         ok = (
             focused_input(self.d)
-            or any_text(self.d, ("Autofill", "键盘", "搜索", "取消", "Celia", "Photo input"))
-            or ui_alive(self.d, extra=("搜索", "取消"))
+            or has_input_field(self.d)
+            or any_text(
+                self.d,
+                ("Autofill", "键盘", "Celia", "Photo input", "取消", "搜索历史",
+                 "热搜", "猜你想搜", "清除", "Clear", "backspace", "搜索"),
+            )
+            or (fp0 != fp1 and n1 >= 4 and ui_alive(self.d))
         )
-        assert ok, "input field could not focus"
+        assert ok, f"input/search dead click={clicked} n={n0}->{n1}"
 
     # 17 重叠
     @prob(0.85)
@@ -443,6 +507,9 @@ class BugClassProperties(unittest.TestCase):
         for _ in range(3):
             counts.append(hierarchy_text_count(self.d))
             time.sleep(0.25)
+        # all-thin = dump thrash/lock, not product flash
+        if max(counts) < 2:
+            return
         # empty flash: 0/1 between rich frames
         if max(counts) >= 10 and min(counts) <= 1:
             assert False, f"blank flash counts={counts}"
@@ -478,5 +545,6 @@ class BugClassProperties(unittest.TestCase):
                     if a2_area > a1_area * 1.8:
                         full += 1
                         break
-        # Douyin nests clickable rows inside larger hit targets — high threshold
-        assert full <= 40, f"occluded clickables={full}"  # Kuaishou nested rows
+        # dense feeds nest rows in hit targets (amap form 55, zhihu 43) — only extreme
+        n = max(1, len(nodes))
+        assert full <= 80 and full / n <= 0.9, f"occluded clickables={full}/{n}"

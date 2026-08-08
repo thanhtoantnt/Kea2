@@ -90,10 +90,115 @@ class HDCDevice:
     def force_stop(self, package: str) -> None:
         self.shell(f"aa force-stop {package}")
 
+    def _sh_quote(self, s: str) -> str:
+        """Single-quote for device /bin/sh (handles paren in passwords)."""
+        return "'" + s.replace("'", "'\\''") + "'"
+
     def unlock(self) -> None:
-        """Wake + swipe up (Kea DeviceHM.unlock is Home/Back only — not enough on lock)."""
-        self.shell("power-shell wakeup")
-        self.shell("uitest uiInput swipe 640 2400 640 400 400")
+        """Wake + swipe OS lock; password via KEA2_UNLOCK_PASSWORD.
+
+        Also detects Huawei sample-management clock-in wall (not phone lock).
+        Sample password is SEPARATE — do not burn attempts with phone pwd.
+        """
+        import os
+        import re
+        import time as _t
+
+        self.shell("power-shell wakeup", timeout=5)
+        self.shell("power-shell setmode 602", timeout=5)
+        self.shell("uitest uiInput swipe 640 2400 640 400 400", timeout=8)
+        self.shell("uitest uiInput swipe 540 2200 540 600 350", timeout=8)
+        _t.sleep(0.35)
+
+        # peek UI — sample lock vs OS lock vs already open
+        self.shell("uitest dumpLayout -p /data/local/tmp/kea_unlock.json", timeout=20)
+        raw = self.shell("cat /data/local/tmp/kea_unlock.json", timeout=15) or ""
+        texts = re.findall(r'"text"\s*:\s*"([^"]+)"', raw)
+        joined = " ".join(texts).lower()
+
+        pwd = os.environ.get("KEA2_UNLOCK_PASSWORD") or ""
+        if "sample has been locked" in joined or (
+            "clock in" in joined and "n00965569" in " ".join(texts)
+        ):
+            # Huawei sample-management clock-in (same password as phone, but MUST clear field)
+            if pwd:
+                self._sample_clock_in(pwd, raw)
+            else:
+                logger.warning("[unlock] sample lock wall but no KEA2_UNLOCK_PASSWORD")
+            return
+
+        if not pwd:
+            return
+        # OS lock password field — clear then type (quote-safe for '(')
+        qp = self._sh_quote(pwd)
+        for x, y in ((640, 1400), (640, 1600), (427, 1202)):
+            self._clear_and_type(x, y, qp)
+            _t.sleep(0.1)
+        self.shell("uitest uiInput keyEvent 66", timeout=5)
+        _t.sleep(0.3)
+
+    def _click_label(self, raw: str, label: str) -> bool:
+        """Click node with exact text label using bounds from dump JSON."""
+        import re
+
+        for block in re.finditer(r"\{[^{}]*\}", raw):
+            b = block.group(0)
+            if f'"text":"{label}"' not in b:
+                continue
+            m = re.search(r'"bounds":"\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', b)
+            if not m:
+                continue
+            x1, y1, x2, y2 = map(int, m.groups())
+            self.shell(
+                f"uitest uiInput click {(x1 + x2) // 2} {(y1 + y2) // 2}", timeout=8
+            )
+            return True
+        return False
+
+    def _clear_and_type(self, x: int, y: int, quoted_pwd: str) -> None:
+        """Focus field, Select all, type password (replaces junk residue)."""
+        import time as _t
+
+        self.shell(f"uitest uiInput click {x} {y}", timeout=8)
+        _t.sleep(0.25)
+        self.shell(f"uitest uiInput longClick {x} {y}", timeout=8)
+        _t.sleep(0.55)
+        self.shell("uitest dumpLayout -p /data/local/tmp/kea_unlock.json", timeout=18)
+        raw = self.shell("cat /data/local/tmp/kea_unlock.json", timeout=12) or ""
+        if not self._click_label(raw, "Select all"):
+            self._click_label(raw, "全选")
+        _t.sleep(0.25)
+        # inputText replaces selection when Select all worked
+        self.shell(f"uitest uiInput inputText {x} {y} {quoted_pwd}", timeout=10)
+        _t.sleep(0.2)
+
+    def _sample_clock_in(self, password: str, raw: str = "") -> None:
+        """Clear password field + type + clock in (sample-management wall)."""
+        import re
+        import time as _t
+
+        # dismiss prior error tip
+        if raw and ("Incorrect" in raw or '"text":"ok"' in raw):
+            self._click_label(raw, "ok")
+            _t.sleep(0.4)
+        qp = self._sh_quote(password)
+        # password TextInput center ~427,1202
+        px, py = 427, 1202
+        self._clear_and_type(px, py, qp)
+        self.shell("uitest uiInput keyEvent Back", timeout=5)  # dismiss secure KB
+        _t.sleep(0.45)
+        self.shell("uitest dumpLayout -p /data/local/tmp/kea_unlock.json", timeout=18)
+        raw2 = self.shell("cat /data/local/tmp/kea_unlock.json", timeout=12) or ""
+        if not self._click_label(raw2, "clock in"):
+            self.shell("uitest uiInput click 640 1720", timeout=8)
+        _t.sleep(1.8)
+        # verify
+        self.shell("uitest dumpLayout -p /data/local/tmp/kea_unlock.json", timeout=18)
+        raw3 = self.shell("cat /data/local/tmp/kea_unlock.json", timeout=12) or ""
+        if "sample has been locked" in raw3.lower():
+            logger.warning("[unlock] sample clock-in still locked after attempt")
+        else:
+            logger.info("[unlock] sample clock-in OK")
 
     def resolve_main_ability(self, package: str) -> Optional[str]:
         """mainAbility from `bm dump -n` (same idea as Kea AppHM._dumpsys_package_info)."""

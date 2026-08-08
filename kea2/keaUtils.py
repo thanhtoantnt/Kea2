@@ -696,13 +696,22 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                 # Android Fastbot explores-then-checks; on dense feeds that immediately
                 # opens detail/login (meitanjianghu 速递→详情→登录), T0 home preconds
                 # never match → executed_total=0. Dump-first fixes that.
+                # time check before expensive dump (budget can overrun mid-step)
+                if self.shouldStop(start_time):
+                    logger.info("Exploration time up (--running-minutes).")
+                    break
                 self.stepsCount += 1
                 if explorer.executed_prop:
                     explorer.executed_prop = False
                 hierarchy_raw = explorer.dump_for_props()
 
-                if not hierarchy_raw:
-                    logger.warning("Empty hierarchy; skip step.")
+                if not hierarchy_raw or hierarchy_raw in ("{}", "null"):
+                    logger.warning("Empty hierarchy; unlock+skip step.")
+                    try:
+                        explorer.hdc.unlock()
+                        explorer.start_apps()
+                    except Exception:
+                        pass
                     continue
                 # ponytail: skip sparse re-dump (was +1 dumpLayout/step)
 
@@ -763,9 +772,13 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                     except Exception:
                         pass
                 last_prop = getattr(self, "_harmony_last_prop", None)
-                # 1 prop/step while device dumpLayout 5–16s; raise when dumps <2s
+                # adaptive props/step: fast dumps → 3, normal → 2, thrash → 1
+                _prev = getattr(self, "_harmony_last_step_t", start_time)
+                _step_dt = max(0.01, perf_counter() - _prev)
+                self._harmony_last_step_t = perf_counter()
+                n_props = 3 if _step_dt < 3.0 else (2 if _step_dt < 12.0 else 1)
                 ran_this_step = set()
-                for _prop_i in range(1):
+                for _prop_i in range(n_props):
                     pool = [p for p in checkableProperties if p not in ran_this_step]
                     if not pool:
                         break
@@ -773,8 +786,12 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                     weighted = []
                     for p in candidates:
                         low = p.lower()
+                        # decompile-seeded + specialized app packs
                         if "decompiled" in low or "ctrip_ctimage" in low or "calculator_decompiled" in low:
                             w = 6
+                        # 20 bug-class oracles — keep parity with decomp hunt
+                        elif "bug_classes" in low:
+                            w = 5
                         elif "bug_find" in low or "flow" in low:
                             w = 3
                         elif "hunt" in low or "semantic" in low or "deep_hunt" in low:

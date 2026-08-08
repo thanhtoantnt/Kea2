@@ -21,3 +21,18 @@ output/
 quicktest.py
 
 .venv
+
+# device secrets — never commit
+.device_unlock
+modeA_runs/.device_unlock
+**/.device_unlock
+# Mode A bulk artifacts (keep scripts/docs tracked selectively)
+modeA_runs/props_out/
+modeA_runs/**/*.pid
+modeA_runs/**/*_nohup.out
+modeA_runs/**/modeA_loop_*.log
+modeA_runs/**/heartbeat.out
+modeA_runs/decompile_exp/**/out/
+modeA_runs/decompile_exp/**/*.abc
+modeA_runs/decompile_exp/**/hap/
+.pi/

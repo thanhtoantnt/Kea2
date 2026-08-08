@@ -242,10 +242,10 @@ class HMDevice:
     def app_current(self) -> dict:
         """Minimal parity with uiautomator2 — package currently FOREGROUND via aa dump."""
         import subprocess, re, time as _t
-        # B6: 1.5s cache — aa dump -l is slow; preconds called it dozens/step
+        # B6: 2.5s cache — aa dump -l slow; match live hierarchy cache window
         now = _t.time()
         cache = getattr(self, "_app_cur_cache", None)
-        if cache and now - cache[0] < 1.5:
+        if cache and now - cache[0] < 2.5:
             return cache[1]
         try:
             raw = subprocess.check_output(
