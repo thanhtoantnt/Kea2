@@ -271,6 +271,11 @@ class HarmonyExplorer:
         self._steps = 0
         self._steps_log: Optional[Path] = None
         self._activity = (package_names[0] if package_names else "unknown")
+        # weak-dump tarpit guards (article.video Mode B: relaunch loop burned minutes)
+        self._weak_streak = 0
+        self._relaunch_count = 0
+        self._last_relaunch_ts = 0.0
+        self._back_on_weak = 0
 
     def start_apps(self):
         for pkg in self.packages:
@@ -348,16 +353,16 @@ class HarmonyExplorer:
         return hits >= 1 and len(texts) >= 4
 
     def dump_sut_hierarchy(self) -> dict:
-        """Dump hierarchy while SUT is FOREGROUND; relaunch if dump is launcherish.
+        """Dump hierarchy while SUT is FOREGROUND; recover carefully if weak.
 
-        Hard budget ~20s — unlock once + at most one relaunch. Old 3× unlock+relaunch
-        loops burned whole --running-minutes (dianping 774s step).
+        Hard budget ~12s — unlock once. Relaunch is rate-limited (cooldown + cap).
+        Empty dump while SUT still FG (hybrid/webview) → Back, NOT relaunch thrash
+        (article.video Mode B burned running-minutes on force-start loops).
         """
         t0 = time.time()
-        budget_s = 20.0
+        budget_s = 12.0
         last: dict = {}
         unlocked = False
-        relaunched = False
         for attempt in range(2):  # hard cap 2 dumps
             if time.time() - t0 > budget_s:
                 logger.warning("[Harmony] dump_sut budget exhausted; return last")
@@ -386,15 +391,41 @@ class HarmonyExplorer:
                             break
                     except Exception:
                         pass
+            fg = self._sut_fg()
             if self._looks_like_sut_content(texts) and not self._looks_launcherish(last):
+                self._weak_streak = 0
                 return last
-            if self._sut_fg() and not self._looks_launcherish(last) and len(texts) >= 3:
+            if fg and not self._looks_launcherish(last) and len(texts) >= 3:
+                self._weak_streak = 0
                 return last
-            # Empty/thin or not FG: unlock once, relaunch once, then give up
+
+            # Weak dump
+            self._weak_streak += 1
             logger.warning(
                 f"[Harmony] weak dump try={attempt} texts={len(texts)} "
-                f"fg={self._sut_fg()} sample={texts[:6]!r}"
+                f"fg={fg} streak={self._weak_streak} sample={texts[:6]!r}"
             )
+
+            # Case A: SUT still FG but dump empty/thin → hybrid blank / mid-transition.
+            # Back out; do NOT relaunch (relaunch thrashes and burns the run).
+            if fg and len(texts) <= 2:
+                if self._back_on_weak < 3:
+                    try:
+                        self.hdc.shell("uitest uiInput keyEvent Back")
+                        self._back_on_weak += 1
+                        time.sleep(0.35)
+                        last = self.d.dump_hierarchy() or {}
+                        texts2 = self._content_texts(last)
+                        if len(texts2) >= 3 or self._looks_like_sut_content(texts2):
+                            self._weak_streak = 0
+                            self._back_on_weak = 0
+                            return last
+                    except Exception:
+                        pass
+                # give stepMonkey something; skip relaunch
+                break
+
+            # Case B: not FG or launcher chrome → unlock once + rate-limited relaunch
             if not unlocked:
                 try:
                     self.hdc.unlock()
@@ -402,10 +433,21 @@ class HarmonyExplorer:
                 except Exception:
                     pass
                 time.sleep(0.2)
-            if not relaunched:
+            now = time.time()
+            # ponytail: max 3 relaunches/run, ≥12s apart — stops article.video tarpit
+            if (
+                self._relaunch_count < 3
+                and (now - self._last_relaunch_ts) >= 12.0
+                and attempt == 0
+            ):
+                logger.info(
+                    f"[Harmony] relaunch SUT ({self._relaunch_count + 1}/3) after weak dump"
+                )
                 self.start_apps()
-                relaunched = True
-                time.sleep(0.5)
+                self._relaunch_count += 1
+                self._last_relaunch_ts = now
+                self._back_on_weak = 0
+                time.sleep(0.6)
                 continue
             break
         return last or {}
@@ -569,15 +611,56 @@ class HarmonyExplorer:
                     time.sleep(self.throttle)
             self.log_monkey("CLICK", [x1, y1, x2, y2], label=label, typ=typ)
         else:
-            logger.info("Harmony explore swipe fallback")
-            self.hdc.shell("uitest uiInput swipe 540 1800 540 600 300")
-            self.log_monkey("SCROLL", [540, 1800, 540, 600], label="swipe", typ="swipe")
-            if self.throttle:
-                time.sleep(self.throttle)
-        # Taps (esp. after hmdriver reconnect) can drop SUT; re-grab before precond dump.
+            # empty candidates: Back if weak/empty tree, else swipe
+            texts0 = self._content_texts(h)
+            if len(texts0) <= 2 and self._sut_fg() and self._back_on_weak < 4:
+                logger.info("Harmony explore Back fallback (empty tree)")
+                try:
+                    self.hdc.shell("uitest uiInput keyEvent Back")
+                    self._back_on_weak += 1
+                except Exception:
+                    pass
+                self.log_monkey("BACK", [0, 0, 0, 0], label="back", typ="key")
+                if self.throttle:
+                    time.sleep(self.throttle)
+            else:
+                logger.info("Harmony explore swipe fallback")
+                self.hdc.shell("uitest uiInput swipe 540 1800 540 600 300")
+                self.log_monkey("SCROLL", [540, 1800, 540, 600], label="swipe", typ="swipe")
+                if self.throttle:
+                    time.sleep(self.throttle)
+        # Taps can drop SUT; re-grab before precond dump.
+        # If already in weak-dump streak, cheap dump only (no relaunch thrash).
         try:
-            h2 = self.dump_sut_hierarchy()
+            if self._weak_streak >= 2:
+                try:
+                    self.d.setHierarchy(None)
+                except Exception:
+                    pass
+                h2 = self.d.dump_hierarchy() or {}
+                texts2 = self._content_texts(h2)
+                if len(texts2) < 3 and self._sut_fg() and self._back_on_weak < 4:
+                    try:
+                        self.hdc.shell("uitest uiInput keyEvent Back")
+                        self._back_on_weak += 1
+                        time.sleep(0.3)
+                        h2 = self.d.dump_hierarchy() or {}
+                    except Exception:
+                        pass
+                if len(self._content_texts(h2)) < 3:
+                    # swipe to jolt hybrid renderer
+                    try:
+                        self.hdc.shell("uitest uiInput swipe 540 1600 540 900 280")
+                        time.sleep(0.25)
+                        h2 = self.d.dump_hierarchy() or h2
+                    except Exception:
+                        pass
+            else:
+                h2 = self.dump_sut_hierarchy()
             h2 = _maybe_dismiss_overlay(self.d, self.hdc, h2)
+            if self._looks_like_sut_content(self._content_texts(h2)):
+                self._weak_streak = 0
+                self._back_on_weak = 0
             return json.dumps(h2, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"post-step dump failed: {e}")
