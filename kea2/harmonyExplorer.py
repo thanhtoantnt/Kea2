@@ -1,27 +1,39 @@
 """
-Lightweight random UI explorer for HarmonyOS (Feature 1 substitute).
+HarmonyOS UI explorer (Feature 1 substitute for Fastbot).
 
-Kea2 Android uses Fastbot; there is no Fastbot for HarmonyOS NEXT.
-This explorer dumps hierarchy via hmdriver2 and taps random on-screen widgets,
-returning hierarchy JSON for precondition checks (Feature 3).
+No Fastbot on HarmonyOS NEXT. This module dumps hierarchy via hmdriver2 and
+drives exploration. Ideas borrowed from old Kea / HMDroidbot lineage
+(DroidBot policies) — implemented in-tree, no HMDroidbot dependency:
 
-Also writes a Fastbot-compatible steps.log so HTML bug reports can load.
+  - light UTG: structure hash + prefer unseen widget edges
+  - multi-action: tap / scroll / long-press / setText / back
+  - tarpit: same state streak → force scroll or Back
+  - steps-outside FG → relaunch (rate-limited)
+
+Also writes Fastbot-compatible steps.log for HTML bug reports.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import re
 import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .hmDriver import HMDevice, _attrs, _parse_bounds, _walk_nodes
 from .hdcUtils import HDCDevice
 from .utils import StampManager, getLogger
 
 logger = getLogger(__name__)
+
+# old Kea InputPolicy-inspired caps (scaled down for dump-heavy Harmony)
+_MAX_STEPS_OUTSIDE = 8
+_TARPIT_STREAK = 4
+_UTG_EDGE_CAP = 4000
 
 # labels / types that are never useful explore targets
 _NOISE_EXACT = {
@@ -145,6 +157,80 @@ def _weighted_choice(cands: List[Tuple]) -> Tuple:
         raise ValueError("empty cands")
     weights = [max(1, int(c[-1])) for c in cands]
     return random.choices(cands, weights=weights, k=1)[0]
+
+
+def _state_hash(hierarchy: dict) -> str:
+    """Content-light structure fingerprint (UTG node id).
+
+    Uses type + id + short text/desc + coarse grid — ignores volatile feed copy
+    length so similar shells collide (old Kea structure_str idea, cheap).
+    """
+    parts: List[str] = []
+    for node in _walk_nodes(hierarchy or {}):
+        a = _attrs(node)
+        typ = str(a.get("type") or "")
+        nid = str(a.get("id") or "")
+        t = str(a.get("text") or "").strip()[:12]
+        d = str(a.get("description") or "").strip()[:12]
+        b = _parse_bounds(a.get("bounds"))
+        if not b:
+            continue
+        # 4x6 grid cell
+        cx = (b[0] + b[2]) // 2
+        cy = (b[1] + b[3]) // 2
+        cell = f"{cx // 320}x{cy // 480}"
+        lab = t or d
+        # drop long feed titles from hash (keep short chrome labels)
+        if len(lab) > 10 and typ in ("Text", "Span"):
+            lab = lab[:4]
+        parts.append(f"{typ}|{nid}|{lab}|{cell}")
+        if len(parts) >= 80:
+            break
+    raw = "\n".join(parts) or "empty"
+    return hashlib.md5(raw.encode("utf-8", errors="ignore")).hexdigest()[:12]
+
+
+def _editable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int, int, str]]:
+    """(cx,cy,x1,y1,x2,y2,label) for TextInput-like nodes."""
+    out = []
+    for node in _walk_nodes(hierarchy or {}):
+        a = _attrs(node)
+        typ = str(a.get("type") or "")
+        t = str(a.get("text") or "")
+        d = str(a.get("description") or "")
+        nid = str(a.get("id") or "").lower()
+        blob = f"{typ} {t} {d} {nid}".lower()
+        editable = (
+            "textinput" in typ.lower()
+            or "edittext" in typ.lower()
+            or "search" in blob
+            or str(a.get("focused") or "").lower() in ("true", "1")
+        )
+        if not editable:
+            continue
+        bounds = _parse_bounds(a.get("bounds"))
+        if not bounds:
+            continue
+        x1, y1, x2, y2 = bounds
+        if x2 - x1 < 20 or y2 - y1 < 16:
+            continue
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        if cy < 100:
+            continue
+        out.append((cx, cy, x1, y1, x2, y2, (t or d or typ)[:40]))
+    return out
+
+
+def _scrollable_hint(hierarchy: dict) -> bool:
+    """True if tree looks like a list/feed worth scrolling."""
+    n_list = 0
+    for node in _walk_nodes(hierarchy or {}):
+        typ = str(_attrs(node).get("type") or "")
+        if typ in ("List", "ListItem", "Grid", "GridItem", "Scroll", "Scrollable"):
+            n_list += 1
+        if n_list >= 2:
+            return True
+    return n_list >= 1
 
 
 _OVERLAY_BACK = (
@@ -278,6 +364,14 @@ class HarmonyExplorer:
         self._relaunch_count = 0
         self._last_relaunch_ts = 0.0
         self._back_on_weak = 0
+        # --- HMDroidbot/old-Kea inspired ---
+        self._seen_states: Set[str] = set()
+        self._seen_edges: Set[str] = set()  # "state|act|wid" capped
+        self._state_hist: deque = deque(maxlen=12)
+        self._same_state_streak = 0
+        self._steps_outside = 0
+        self._last_state = ""
+        self._action_rng = random.Random()
 
     def start_apps(self):
         for pkg in self.packages:
@@ -548,13 +642,117 @@ class HarmonyExplorer:
             }
         )
 
+    def _widget_id(self, label: str, typ: str, x1: int, y1: int) -> str:
+        return f"{typ}:{label[:24]}@{x1 // 40}x{y1 // 40}"
+
+    def _remember_edge(self, state: str, act: str, wid: str) -> None:
+        if len(self._seen_edges) >= _UTG_EDGE_CAP:
+            return
+        self._seen_edges.add(f"{state}|{act}|{wid}")
+
+    def _boost_unseen(self, state: str, cands: List[Tuple]) -> List[Tuple]:
+        """UTG: up-weight widgets whose edge from this state is new."""
+        if not cands:
+            return cands
+        out = []
+        for c in cands:
+            cx, cy, x1, y1, x2, y2, label, typ, w = c[:9]
+            wid = self._widget_id(label, typ, x1, y1)
+            edge = f"{state}|CLICK|{wid}"
+            ww = int(w)
+            if edge not in self._seen_edges:
+                ww += 5
+            out.append((cx, cy, x1, y1, x2, y2, label, typ, max(1, ww)))
+        return out
+
+    def _update_state_track(self, h: dict) -> str:
+        st = _state_hash(h)
+        self._seen_states.add(st)
+        if st == self._last_state:
+            self._same_state_streak += 1
+        else:
+            self._same_state_streak = 0
+            self._last_state = st
+        self._state_hist.append(st)
+        return st
+
+    def _do_scroll(self, direction: str = "up") -> None:
+        # screen mid; up = finger moves up = content down (feed)
+        if direction == "up":
+            x1, y1, x2, y2 = 540, 1900, 540, 700
+        elif direction == "down":
+            x1, y1, x2, y2 = 540, 700, 540, 1900
+        elif direction == "left":
+            x1, y1, x2, y2 = 1000, 1400, 200, 1400
+        else:
+            x1, y1, x2, y2 = 200, 1400, 1000, 1400
+        try:
+            self.d.swipe(x1, y1, x2, y2, speed=350)
+        except Exception:
+            try:
+                self.hdc.shell(f"uitest uiInput swipe {x1} {y1} {x2} {y2} 300")
+            except Exception as e:
+                logger.debug(f"scroll failed: {e}")
+        self.log_monkey("SCROLL", [x1, y1, x2, y2], label=f"scroll_{direction}", typ="swipe")
+
+    def _do_back(self) -> None:
+        try:
+            self.hdc.shell("uitest uiInput keyEvent Back")
+        except Exception:
+            try:
+                self.d.go_back()
+            except Exception:
+                pass
+        self.log_monkey("BACK", [0, 0, 0, 0], label="back", typ="key")
+
+    def _do_long_press(self, cx: int, cy: int, x1: int, y1: int, x2: int, y2: int, label: str) -> None:
+        try:
+            self.hdc.shell(f"uitest uiInput longClick {cx} {cy}")
+        except Exception as e:
+            logger.debug(f"longClick failed: {e}; fallback tap")
+            try:
+                self.d._click_xy(cx, cy)
+            except Exception:
+                pass
+        self.log_monkey("LONG_CLICK", [x1, y1, x2, y2], label=label, typ="long")
+
+    def _do_set_text(self, cx: int, cy: int, x1: int, y1: int, x2: int, y2: int, label: str) -> None:
+        sample = random.choice(("test", "a", "12", "搜索", "kea"))
+        try:
+            # focus then inputText via hdc (hmdriver set_text needs selector)
+            self.d._click_xy(cx, cy)
+            time.sleep(0.15)
+            quoted = json.dumps(sample, ensure_ascii=False)
+            self.hdc.shell(f"uitest uiInput inputText {cx} {cy} {quoted}")
+        except Exception as e:
+            logger.debug(f"setText failed: {e}")
+        self.log_monkey("SET_TEXT", [x1, y1, x2, y2], label=f"{label}:{sample}", typ="input")
+
+    def _pick_action(self, h: dict, state: str, cands: List[Tuple], edits: List[Tuple]) -> str:
+        """Choose action kind — random with tarpit bias (old Kea RandomPolicy mix)."""
+        # outside app: handled by caller
+        if self._same_state_streak >= _TARPIT_STREAK:
+            # tarpit escape: scroll or back, not another same tap
+            return random.choice(("SCROLL", "SCROLL", "BACK"))
+        r = self._action_rng.random()
+        if edits and r < 0.08:
+            return "SET_TEXT"
+        if cands and r < 0.10:
+            return "LONG_CLICK"
+        if (_scrollable_hint(h) and r < 0.28) or (not cands and r < 0.7):
+            return "SCROLL"
+        if r < 0.06:
+            return "BACK"
+        if cands:
+            return "CLICK"
+        return "SCROLL"
+
     def stepMonkey(self, _info: Optional[dict] = None) -> str:
-        """One random exploration step; return hierarchy JSON string (SUT FG)."""
+        """One exploration step (multi-action + light UTG); return hierarchy JSON."""
         self._steps += 1
         try:
             h = self.dump_sut_hierarchy()
         except Exception as e:
-            # hdc blip / uitest dump fail — wait and one retry before giving up step
             logger.warning(f"dump_sut_hierarchy failed: {e}; retry once")
             time.sleep(0.4)  # B8
             try:
@@ -563,7 +761,27 @@ class HarmonyExplorer:
                 logger.error(f"dump_sut_hierarchy retry failed: {e2}")
                 return "{}"
         h = _maybe_dismiss_overlay(self.d, self.hdc, h)
-        # Weather/city picker etc.: no bottom tabs, has search/popular cities → Back to home chrome
+
+        # FG outside tracking (old Kea MAX_NUM_STEPS_OUTSIDE)
+        if self.packages and not self._sut_fg() and not self._looks_like_sut_content(
+            self._content_texts(h)
+        ):
+            self._steps_outside += 1
+            if self._steps_outside >= _MAX_STEPS_OUTSIDE:
+                logger.info(
+                    f"[Harmony] outside FG {self._steps_outside} steps — relaunch SUT"
+                )
+                try:
+                    self.start_apps()
+                    time.sleep(0.5)
+                    h = self.dump_sut_hierarchy()
+                except Exception as e:
+                    logger.debug(f"relaunch outside failed: {e}")
+                self._steps_outside = 0
+        else:
+            self._steps_outside = 0
+
+        # Weather/city picker etc.: no bottom tabs, has search/popular cities → Back
         try:
             texts_l = [x.lower() for x in self._content_texts(h)]
             blob = " ".join(texts_l)
@@ -581,7 +799,7 @@ class HarmonyExplorer:
                 )
             ):
                 logger.info("[Harmony] city-picker/subpage without tabs — Back")
-                self.hdc.shell("uitest uiInput keyEvent Back")
+                self._do_back()
                 time.sleep(0.2)
                 h = self.dump_sut_hierarchy()
         except Exception:
@@ -590,51 +808,70 @@ class HarmonyExplorer:
         texts = " ".join(self._content_texts(h)).lower()
         if "loading error" in texts or ("retry" in texts and "h5" in texts):
             logger.info("[Harmony] H5 load-error surface — keyEvent Back")
-            try:
-                self.hdc.shell("uitest uiInput keyEvent Back")
-            except Exception:
-                pass
+            self._do_back()
             time.sleep(0.25)
             h = self.dump_sut_hierarchy()
-        cands = _clickable_candidates(h)
-        if cands:
+
+        state = self._update_state_track(h)
+        cands = self._boost_unseen(state, _clickable_candidates(h))
+        edits = _editable_candidates(h)
+        act = self._pick_action(h, state, cands, edits)
+
+        prev = None
+        try:
+            prev = self.d._hierarchy_fingerprint()
+        except Exception:
+            pass
+
+        if act == "BACK":
+            logger.info(f"Harmony explore BACK (tarpit={self._same_state_streak})")
+            self._do_back()
+            self._remember_edge(state, "BACK", "key")
+        elif act == "SCROLL":
+            direction = random.choice(("up", "up", "up", "down", "left", "right"))
+            logger.info(
+                f"Harmony explore SCROLL {direction} (tarpit={self._same_state_streak})"
+            )
+            self._do_scroll(direction)
+            self._remember_edge(state, f"SCROLL_{direction}", "screen")
+        elif act == "SET_TEXT" and edits:
+            cx, cy, x1, y1, x2, y2, label = random.choice(edits)
+            logger.info(f"Harmony explore SET_TEXT ({cx},{cy}) {label!r}")
+            self._do_set_text(cx, cy, x1, y1, x2, y2, label)
+            self._remember_edge(state, "SET_TEXT", self._widget_id(label, "input", x1, y1))
+        elif act == "LONG_CLICK" and cands:
+            pick = _weighted_choice(cands)
+            cx, cy, x1, y1, x2, y2, label, typ = pick[:8]
+            logger.info(f"Harmony explore LONG_CLICK ({cx},{cy}) {label!r}")
+            self._do_long_press(cx, cy, x1, y1, x2, y2, label)
+            self._remember_edge(state, "LONG_CLICK", self._widget_id(label, typ, x1, y1))
+        elif cands:
             pick = _weighted_choice(cands)
             cx, cy, x1, y1, x2, y2, label, typ = pick[:8]
             logger.info(f"Harmony explore tap ({cx},{cy}) {label!r} w={pick[-1]}")
-            prev = None
-            try:
-                prev = self.d._hierarchy_fingerprint()
-            except Exception:
-                pass
             try:
                 self.d._click_xy(cx, cy)
             except Exception as e:
                 logger.warning(f"tap failed: {e}")
-            try:
-                self.d._settle_after_action(prev_fp=prev, timeout=max(0.5, self.throttle or 0.5))
-            except Exception:
-                if self.throttle:
-                    time.sleep(self.throttle)
             self.log_monkey("CLICK", [x1, y1, x2, y2], label=label, typ=typ)
+            self._remember_edge(state, "CLICK", self._widget_id(label, typ, x1, y1))
         else:
             # empty candidates: Back if weak/empty tree, else swipe
             texts0 = self._content_texts(h)
             if len(texts0) <= 2 and self._sut_fg() and self._back_on_weak < 4:
                 logger.info("Harmony explore Back fallback (empty tree)")
-                try:
-                    self.hdc.shell("uitest uiInput keyEvent Back")
-                    self._back_on_weak += 1
-                except Exception:
-                    pass
-                self.log_monkey("BACK", [0, 0, 0, 0], label="back", typ="key")
-                if self.throttle:
-                    time.sleep(self.throttle)
+                self._do_back()
+                self._back_on_weak += 1
             else:
                 logger.info("Harmony explore swipe fallback")
-                self.hdc.shell("uitest uiInput swipe 540 1800 540 600 300")
-                self.log_monkey("SCROLL", [540, 1800, 540, 600], label="swipe", typ="swipe")
-                if self.throttle:
-                    time.sleep(self.throttle)
+                self._do_scroll("up")
+
+        try:
+            self.d._settle_after_action(prev_fp=prev, timeout=max(0.5, self.throttle or 0.5))
+        except Exception:
+            if self.throttle:
+                time.sleep(self.throttle)
+
         # Taps can drop SUT; re-grab before precond dump.
         # If already in weak-dump streak, cheap dump only (no relaunch thrash).
         try:
@@ -647,16 +884,15 @@ class HarmonyExplorer:
                 texts2 = self._content_texts(h2)
                 if len(texts2) < 3 and self._sut_fg() and self._back_on_weak < 4:
                     try:
-                        self.hdc.shell("uitest uiInput keyEvent Back")
+                        self._do_back()
                         self._back_on_weak += 1
                         time.sleep(0.3)
                         h2 = self.d.dump_hierarchy() or {}
                     except Exception:
                         pass
                 if len(self._content_texts(h2)) < 3:
-                    # swipe to jolt hybrid renderer
                     try:
-                        self.hdc.shell("uitest uiInput swipe 540 1600 540 900 280")
+                        self._do_scroll("up")
                         time.sleep(0.25)
                         h2 = self.d.dump_hierarchy() or h2
                     except Exception:
@@ -667,6 +903,11 @@ class HarmonyExplorer:
             if self._looks_like_sut_content(self._content_texts(h2)):
                 self._weak_streak = 0
                 self._back_on_weak = 0
+            # update UTG with post state (node only; edge already recorded)
+            try:
+                self._seen_states.add(_state_hash(h2))
+            except Exception:
+                pass
             return json.dumps(h2, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"post-step dump failed: {e}")
@@ -768,4 +1009,46 @@ if __name__ == "__main__":
     c2 = _clickable_candidates(fake2)
     by_label = {c[6]: c[-1] for c in c2}
     assert by_label.get("Home", 0) > by_label.get("Some Artist", 0), by_label
-    print("ok", labels, "weights", by_label)
+    # UTG helpers
+    h1 = _state_hash(fake)
+    h2 = _state_hash(fake)
+    assert h1 == h2 and len(h1) == 12, h1
+    fake_edit = {
+        "attributes": {"bounds": "[0,0][1280,2832]", "type": "root"},
+        "children": [
+            {
+                "attributes": {
+                    "bounds": "[100,300][600,380]",
+                    "type": "TextInput",
+                    "text": "Search",
+                    "clickable": "true",
+                }
+            },
+            {
+                "attributes": {
+                    "bounds": "[0,400][1280,2000]",
+                    "type": "List",
+                    "clickable": "false",
+                },
+                "children": [
+                    {
+                        "attributes": {
+                            "bounds": "[0,400][1280,500]",
+                            "type": "ListItem",
+                            "text": "row",
+                            "clickable": "true",
+                        }
+                    }
+                ],
+            },
+        ],
+    }
+    assert _editable_candidates(fake_edit), "editable miss"
+    assert _scrollable_hint(fake_edit), "scroll hint miss"
+    # boost unseen edges
+    ex = HarmonyExplorer.__new__(HarmonyExplorer)
+    ex._seen_edges = set()
+    cands = _clickable_candidates(fake)
+    boosted = ex._boost_unseen("abc", cands)  # type: ignore[attr-defined]
+    assert all(b[-1] >= c[-1] for b, c in zip(boosted, cands))
+    print("ok", labels, "weights", by_label, "state", h1)
