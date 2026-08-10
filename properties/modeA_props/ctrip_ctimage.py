@@ -1,8 +1,8 @@
 """Ctrip properties from *manual* B_names decompile reading (not a template miner).
 
 Evidence (agent-read):
-  xabc_out/decompiled/com.ctrip.harmonynext/arkdemo.ts  — 4657 records, B_names only
-  mined_all/com.ctrip.harmonynext/{signals.json,ctimage_hits.txt,labels_cjk.txt}
+  kea2-decompile/xabc_out/decompiled/com.ctrip.harmonynext/arkdemo.ts  — 4657 records, B_names only
+  kea2-decompile/mined_all/com.ctrip.harmonynext/{signals.json,ctimage_hits.txt,labels_cjk.txt}
   bug_reports/com.ctrip.harmonynext_ctimage_stack_overflow/  — confirmed jscrash
 
 Module map (owned, high-signal):
@@ -58,7 +58,6 @@ from __future__ import annotations
 import json
 import time
 import unittest
-from pathlib import Path
 
 from kea2 import max_tries, precondition, prob
 
@@ -73,8 +72,12 @@ from properties.modeA_props._util import (
 )
 
 PKG = "com.ctrip.harmonynext"
-_REPO = Path(__file__).resolve().parents[2]
-_MINED = _REPO / "modeA_runs/decompile_exp/mined_all" / PKG
+
+
+def _pkg_mined() -> Path:
+    from properties.modeA_props.decompile_gate import decompile_home
+    return decompile_home() / "mined_all" / PKG
+
 
 # CustomTabBar / signals tabs
 _TABS = ("首页", "酒店", "机票", "火车票", "门票", "旅游", "行程", "攻略", "民宿", "我的", "消息", "订单")
@@ -88,7 +91,7 @@ _ACT = ("重试", "刷新", "返回", "知道了", "取消", "确认")
 
 
 def _signals() -> dict:
-    p = _MINED / "signals.json"
+    p = _pkg_mined() / "signals.json"
     if p.exists():
         return json.loads(p.read_text(encoding="utf-8"))
     return {}
@@ -103,11 +106,12 @@ def _ctimage_confirmed() -> bool:
     s = _signals()
     if s.get("has_ctimage"):
         return True
-    hits = _MINED / "ctimage_hits.txt"
+    hits = _pkg_mined() / "ctimage_hits.txt"
     if hits.exists() and "CTImage" in hits.read_text(encoding="utf-8", errors="ignore"):
         return True
     # names dump still lists module
-    names = _REPO / "modeA_runs/decompile_exp/xabc_out/decompiled" / PKG / "arkdemo.ts"
+    from properties.modeA_props.decompile_gate import decompile_home
+    names = decompile_home() / "xabc_out" / "decompiled" / PKG / "arkdemo.ts"
     if names.exists() and "ctcommon.ctimage" in names.read_text(encoding="utf-8", errors="ignore"):
         return True
     return False

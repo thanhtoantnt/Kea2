@@ -32,9 +32,9 @@ modeA_runs/**/*.pid
 modeA_runs/**/*_nohup.out
 modeA_runs/**/modeA_loop_*.log
 modeA_runs/**/heartbeat.out
-modeA_runs/decompile_exp/**/out/
-modeA_runs/decompile_exp/**/*.abc
-modeA_runs/decompile_exp/**/hap/
+# decompile artifacts live in sibling repo kea2-decompile — do not re-add bulk here
+modeA_runs/decompile_exp/**
+!modeA_runs/decompile_exp/README.md
 .pi/
 
 # never track unlock secrets or run logs that may contain them

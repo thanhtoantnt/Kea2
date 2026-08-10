@@ -1,7 +1,7 @@
 """App-agnostic props driven by offline decompile/mine signals.
 
-Loads `modeA_runs/decompile_exp/mined_all/<pkg>/signals.json` (built from abc
-string mine / xabc). No phone needed to generate; phone only to execute.
+Loads `<KEA2_DECOMPILE_HOME>/mined_all/<pkg>/signals.json` (kea2-decompile repo;
+abc mine / xabc). No phone needed to generate; phone only to execute.
 
 Target package: env KEA2_TARGET_PKG, else fg package, else first signals hit.
 """
@@ -28,7 +28,6 @@ from properties.modeA_props._util import (
 )
 
 _REPO = Path(__file__).resolve().parents[2]
-_MINED = _REPO / "modeA_runs" / "decompile_exp" / "mined_all"
 
 # app chrome boosts (decompile often misses live tab labels)
 _TAB_BOOST = {
@@ -110,11 +109,12 @@ def _target_pkg(d=None) -> str | None:
     if env:
         return env.strip()
     if d is not None:
+        from properties.modeA_props.decompile_gate import decompile_home, has_decompile_signals
         fg = fg_package(d) or ""
-        if fg and (_MINED / fg / "signals.json").exists():
+        if fg and has_decompile_signals(fg):
             return fg
-        # partial match (ability suffix)
-        for sub in _MINED.iterdir() if _MINED.exists() else []:
+        mined = decompile_home() / "mined_all"
+        for sub in mined.iterdir() if mined.exists() else []:
             if sub.is_dir() and sub.name in fg:
                 return sub.name
     return None
