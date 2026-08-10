@@ -1,10 +1,10 @@
 """Require offline decompile signals before Mode A / Mode B kea runs.
 
 Decompile tree is NOT inside Kea2. Resolve order:
-  1. KEA2_DECOMPILE_HOME / PBT_KEA_DECOMPILE_HOME
-  2. sibling ../kea2-decompile (next to Kea2 checkout)
-  3. ~/github/kea2-decompile
-  4. legacy Kea2/modeA_runs/decompile_exp (compat only)
+  1. HARMONY_DECOMPILE_HOME / KEA2_DECOMPILE_HOME / PBT_KEA_DECOMPILE_HOME
+  2. sibling ../harmony-decompile (next to Kea2 checkout)
+  3. ~/github/harmony-decompile
+  4. legacy ../kea2-decompile or Kea2/modeA_runs/decompile_exp
 
 Input contract: installed package + <decompile_home>/mined_all/<pkg>/signals.json
 """
@@ -21,16 +21,19 @@ def decompile_home(explicit: str | Path | None = None) -> Path:
     if explicit:
         return Path(explicit).expanduser().resolve()
     env = (
-        os.environ.get("KEA2_DECOMPILE_HOME")
+        os.environ.get("HARMONY_DECOMPILE_HOME")
+        or os.environ.get("KEA2_DECOMPILE_HOME")
         or os.environ.get("PBT_KEA_DECOMPILE_HOME")
         or ""
     ).strip()
     if env:
         return Path(env).expanduser().resolve()
     candidates = [
-        _KEA2.parent / "kea2-decompile",
+        _KEA2.parent / "harmony-decompile",
+        Path.home() / "github" / "harmony-decompile",
+        _KEA2.parent / "kea2-decompile",  # rename legacy
         Path.home() / "github" / "kea2-decompile",
-        _KEA2 / "modeA_runs" / "decompile_exp",  # legacy
+        _KEA2 / "modeA_runs" / "decompile_exp",  # very old
     ]
     for c in candidates:
         if (c / "mined_all").is_dir():
@@ -78,7 +81,7 @@ def require_decompile_signals(pkg: str | None = None, home: Path | None = None) 
         f"decompile gate: missing signals for {pkg}\n"
         f"  expected: {p}\n"
         f"  decompile_home: {root}\n"
-        f"  Set KEA2_DECOMPILE_HOME or clone kea2-decompile next to Kea2.\n"
+        f"  Set HARMONY_DECOMPILE_HOME or clone harmony-decompile next to Kea2.\n"
         f"  Prep: HAP/ABC → mine/xabc → mined_all/<pkg>/signals.json.\n"
         f"  Mode A and Mode B both abort without decompiled inputs."
     )

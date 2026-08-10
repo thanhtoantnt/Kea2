@@ -1,8 +1,8 @@
 """Ctrip properties from *manual* B_names decompile reading (not a template miner).
 
 Evidence (agent-read):
-  kea2-decompile/xabc_out/decompiled/com.ctrip.harmonynext/arkdemo.ts  — 4657 records, B_names only
-  kea2-decompile/mined_all/com.ctrip.harmonynext/{signals.json,ctimage_hits.txt,labels_cjk.txt}
+  harmony-decompile/xabc_out/decompiled/com.ctrip.harmonynext/arkdemo.ts  — 4657 records, B_names only
+  harmony-decompile/mined_all/com.ctrip.harmonynext/{signals.json,ctimage_hits.txt,labels_cjk.txt}
   bug_reports/com.ctrip.harmonynext_ctimage_stack_overflow/  — confirmed jscrash
 
 Module map (owned, high-signal):

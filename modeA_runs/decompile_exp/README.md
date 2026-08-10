@@ -3,10 +3,10 @@
 Decompile artifacts live in a **separate repo**:
 
 ```text
-https://github.com/thanhtoantnt/kea2-decompile   # if published
-~/github/kea2-decompile                          # local default (sibling of Kea2)
+https://github.com/thanhtoantnt/harmony-decompile
+~/github/harmony-decompile          # local default (sibling of Kea2)
 ```
 
-Set `KEA2_DECOMPILE_HOME` if cloned elsewhere.
+Set `HARMONY_DECOMPILE_HOME` if cloned elsewhere.
 
 Do not put HAP/ABC/xabc/mined_all back under Kea2.

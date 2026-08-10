@@ -1,6 +1,6 @@
 """App-agnostic props driven by offline decompile/mine signals.
 
-Loads `<KEA2_DECOMPILE_HOME>/mined_all/<pkg>/signals.json` (kea2-decompile repo;
+Loads `<HARMONY_DECOMPILE_HOME>/mined_all/<pkg>/signals.json` (harmony-decompile repo;
 abc mine / xabc). No phone needed to generate; phone only to execute.
 
 Target package: env KEA2_TARGET_PKG, else fg package, else first signals hit.

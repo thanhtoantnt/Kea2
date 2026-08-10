@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Mode A campaign using decompile/mine-seeded property packs.
-# Offline prep: ${KEA2_DECOMPILE_HOME}/offline_check.py
+# Offline prep: ${HARMONY_DECOMPILE_HOME}/offline_check.py
 # Phone only needed here.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export KEA2_DECOMPILE_HOME="${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}"
+export HARMONY_DECOMPILE_HOME="${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}"
+export KEA2_DECOMPILE_HOME="$HARMONY_DECOMPILE_HOME"
 cd "$ROOT"
 SERIAL="${SERIAL:-5SM0125606000291}"
 MINS="${MINS:-4}"
@@ -20,7 +21,7 @@ touch "$DONE" "$FAIL" "$LOG"
 log() { echo "[$(date -Iseconds)] $*" | tee -a "$LOG"; }
 
 # offline gate first
-if ! PYTHONPATH="$ROOT" "$ROOT/.venv/bin/python" "${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}/offline_check.py" >>"$LOG" 2>&1; then
+if ! PYTHONPATH="$ROOT" "$ROOT/.venv/bin/python" "${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}/offline_check.py" >>"$LOG" 2>&1; then
   log "OFFLINE_CHECK failed — abort (fix signals/imports before phone run)"
   exit 2
 fi
@@ -69,7 +70,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     continue
   fi
   # signals must exist
-  if [[ ! -f "${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}/mined_all/$pkg/signals.json" ]]; then
+  if [[ ! -f "${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}/mined_all/$pkg/signals.json" ]]; then
     log "SKIP no signals $pkg"
     continue
   fi

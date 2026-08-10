@@ -4,7 +4,8 @@
 set +e
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
-export KEA2_DECOMPILE_HOME="${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}"
+export HARMONY_DECOMPILE_HOME="${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}"
+export KEA2_DECOMPILE_HOME="$HARMONY_DECOMPILE_HOME"
 SERIAL="${SERIAL:-5SM0125606000291}"
 MINS="${MINS:-6}"
 MAXSTEP="${MAXSTEP:-70}"
@@ -181,7 +182,7 @@ while true; do
       continue
     fi
     # hard gate: installed app + offline decompile signals required
-    sig="${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}/mined_all/$pkg/signals.json"
+    sig="${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}/mined_all/$pkg/signals.json"
     if [[ ! -f "$sig" ]]; then
       echo "ABORT no decompile signals $pkg — expected $sig (prep HAP/ABC→mine before Mode A)" | tee -a "$LOG"
       mkdir -p "$ROOT/modeA_runs/props_out"

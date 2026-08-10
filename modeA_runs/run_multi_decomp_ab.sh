@@ -2,7 +2,8 @@
 # Multi-app Mode A with improved decompiled setup. Monitor to natural end per app.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export KEA2_DECOMPILE_HOME="${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}"
+export HARMONY_DECOMPILE_HOME="${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}"
+export KEA2_DECOMPILE_HOME="$HARMONY_DECOMPILE_HOME"
 cd "$ROOT"
 SERIAL="${SERIAL:-5SM0125606000291}"
 MINS="${MINS:-4}"
@@ -50,7 +51,7 @@ for pkg in "${QUEUE[@]}"; do
     echo "SKIP missing $pkg" | tee -a "$LOG"
     continue
   fi
-  if [[ ! -f "${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}/mined_all/$pkg/signals.json" ]]; then
+  if [[ ! -f "${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}/mined_all/$pkg/signals.json" ]]; then
     echo "SKIP no signals $pkg" | tee -a "$LOG"
     continue
   fi

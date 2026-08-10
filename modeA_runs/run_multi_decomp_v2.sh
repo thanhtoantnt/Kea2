@@ -2,7 +2,8 @@
 # Mode A v2: lean packs only (no video_feed dilution), improved dismiss + 3 props/step
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export KEA2_DECOMPILE_HOME="${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}"
+export HARMONY_DECOMPILE_HOME="${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}"
+export KEA2_DECOMPILE_HOME="$HARMONY_DECOMPILE_HOME"
 cd "$ROOT"
 SERIAL="${SERIAL:-5SM0125606000291}"
 MINS="${MINS:-4}"
@@ -47,7 +48,7 @@ for pkg in "${QUEUE[@]}"; do
   if ! hdc -t "$SERIAL" shell bm dump -a 2>/dev/null | tr -d '\t\r' | sed 's/^ *//' | rg -qx "$pkg"; then
     echo "SKIP missing $pkg" | tee -a "$LOG"; continue
   fi
-  if [[ ! -f "${KEA2_DECOMPILE_HOME:-$ROOT/../kea2-decompile}/mined_all/$pkg/signals.json" ]]; then
+  if [[ ! -f "${HARMONY_DECOMPILE_HOME:-${KEA2_DECOMPILE_HOME:-$ROOT/../harmony-decompile}}/mined_all/$pkg/signals.json" ]]; then
     echo "SKIP no signals $pkg" | tee -a "$LOG"; continue
   fi
   stamp=$(date +%Y%m%d_%H%M%S)

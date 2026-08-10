@@ -1,9 +1,9 @@
 """Calculator properties from *manual* decompile reading (not a template miner).
 
 Evidence (agent-read, one app):
-  kea2-decompile/xabc_out/decompiled/com.huawei.hmos.calculator/
+  harmony-decompile/xabc_out/decompiled/com.huawei.hmos.calculator/
     arkdemo.ts.names.ts  — module map (62 app records)
-  kea2-decompile/calculator/
+  harmony-decompile/calculator/
     signals.json, extracted/resources/.../main_pages.json, module.json
 
 Structure recovered:

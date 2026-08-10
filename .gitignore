@@ -32,7 +32,7 @@ modeA_runs/**/*.pid
 modeA_runs/**/*_nohup.out
 modeA_runs/**/modeA_loop_*.log
 modeA_runs/**/heartbeat.out
-# decompile artifacts live in sibling repo kea2-decompile — do not re-add bulk here
+# decompile artifacts live in sibling repo harmony-decompile — do not re-add bulk here
 modeA_runs/decompile_exp/**
 !modeA_runs/decompile_exp/README.md
 .pi/
