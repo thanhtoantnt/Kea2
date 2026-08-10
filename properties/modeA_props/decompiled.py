@@ -58,9 +58,30 @@ def _sanitize(pkg: str, raw: dict) -> dict:
     if not raw:
         return raw
     s = dict(raw)
+    # PA miner (mine_pa_signals): prefer structured chrome.main_tabs + sub_tabs
+    chrome = s.get("chrome") if isinstance(s.get("chrome"), dict) else {}
+    structured = []
+    for k in ("main_tabs", "sub_tabs"):
+        for t in chrome.get(k) or []:
+            if isinstance(t, str) and 1 < len(t) <= 8:
+                structured.append(t)
     tabs = [t for t in (s.get("tabs") or []) if isinstance(t, str) and 1 < len(t) <= 6]
     boost = list(_TAB_BOOST.get(pkg) or ())
-    s["tabs"] = list(dict.fromkeys(boost + tabs))[:20]
+    s["tabs"] = list(dict.fromkeys(boost + structured + tabs))[:20]
+    # footers / mine rows → misc for label click props
+    extra_misc = []
+    for k in ("footers", "mine_rows", "topbars"):
+        for t in chrome.get(k) or []:
+            if isinstance(t, str) and 1 < len(t) <= 12:
+                extra_misc.append(t)
+    if extra_misc:
+        s["misc_labels"] = list(
+            dict.fromkeys(extra_misc + list(s.get("misc_labels") or []))
+        )[:40]
+    if s.get("retry"):
+        s["actions"] = list(
+            dict.fromkeys(list(s.get("actions") or []) + list(s.get("retry") or []))
+        )[:20]
     search = [
         x
         for x in (s.get("search") or [])
