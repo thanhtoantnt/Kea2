@@ -179,6 +179,18 @@ while true; do
       echo "SKIP not installed $pkg" | tee -a "$LOG"
       continue
     fi
+    # hard gate: installed app + offline decompile signals required
+    sig="$ROOT/modeA_runs/decompile_exp/mined_all/$pkg/signals.json"
+    if [[ ! -f "$sig" ]]; then
+      echo "ABORT no decompile signals $pkg — expected $sig (prep HAP/ABC→mine before Mode A)" | tee -a "$LOG"
+      mkdir -p "$ROOT/modeA_runs/props_out"
+      echo "missing $sig" >"$ROOT/modeA_runs/props_out/${pkg}_NO_DECOMPILE.abort"
+      continue
+    fi
+    if ! PYTHONPATH="$ROOT" "$ROOT/.venv/bin/python" -m properties.modeA_props.decompile_gate "$pkg" >/dev/null 2>>"$LOG"; then
+      echo "ABORT decompile gate failed $pkg" | tee -a "$LOG"
+      continue
+    fi
     # if dump failed, still try queue (better than skip-all)
     stamp=$(date +%Y%m%d_%H%M%S)
     out="$ROOT/modeA_runs/props_out/${pkg}_loop_r${round}_${stamp}"

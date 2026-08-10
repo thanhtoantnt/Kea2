@@ -99,10 +99,9 @@ def _sanitize(pkg: str, raw: dict) -> dict:
 
 @lru_cache(maxsize=32)
 def _load_signals(pkg: str) -> dict:
-    p = _MINED / pkg / "signals.json"
-    if not p.exists():
-        # still return boost-only shell so props can run
-        return _sanitize(pkg, {"package": pkg})
+    from properties.modeA_props.decompile_gate import require_decompile_signals, signals_path
+    require_decompile_signals(pkg)  # hard fail — no boost-only ghost runs
+    p = signals_path(pkg)
     return _sanitize(pkg, json.loads(p.read_text(encoding="utf-8")))
 
 
@@ -141,6 +140,8 @@ class DecompiledMineProps(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        from properties.modeA_props.decompile_gate import require_decompile_signals
+        require_decompile_signals()  # abort suite if no offline decompile for target
         d = getattr(cls, "d", None)
         if d:
             dismiss_noise(d)

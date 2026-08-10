@@ -69,6 +69,16 @@ python modeA_runs/decompile_exp/offline_check.py
 
 Runtime pack: `properties.modeA_props.decompiled` loads `signals.json` via `KEA2_TARGET_PKG`.
 
+## 3.5) Gate (required)
+
+**Mode A and Mode B abort** if `mined_all/<pkg>/signals.json` is missing.
+Installed app alone is not enough — decompile/mine first.
+
+```bash
+PYTHONPATH=. python -m properties.modeA_props.decompile_gate com.example.app
+# exit 0 = ok; exit 2 = abort
+```
+
 ## 4) Mode A run (phone)
 
 ```bash
