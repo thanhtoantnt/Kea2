@@ -236,7 +236,13 @@ class BugFindProps(unittest.TestCase):
     @max_tries(5)
     @precondition(lambda self: hierarchy_text_count(self.d) >= 8)
     def test_no_white_screen_after_tap(self):
-        """After tapping a content-ish clickable, must not go blank 1.5s."""
+        """After tapping a content-ish clickable, must not go blank.
+
+        FP guard (article.video Mode B): hybrid/search pages often return
+        hierarchy_text_count=0 on one dump while labels still exist via
+        text=/textContains. Require blank on dump AND no chrome labels.
+        Dump errors (n<0) skip, not fail.
+        """
         nodes = clickable_nodes(self.d)
         if len(nodes) < 3:
             return
@@ -251,15 +257,34 @@ class BugFindProps(unittest.TestCase):
             pick = nodes[len(nodes)//2][0]
         cx, cy = (pick[0]+pick[2])//2, (pick[1]+pick[3])//2
         pkg0 = fg_package(self.d)
-        if not click_xy(self.d, cx, cy, settle=0.4):
+        if not click_xy(self.d, cx, cy, settle=0.5):
             return
-        n = hierarchy_text_count(self.d)
-        pkg1 = fg_package(self.d)
-        if n < 3 and pkg1 not in ("com.ohos.sceneboard",):
-            time.sleep(0.4)
+        # chrome that proves UI still alive even when walk count is low
+        _alive = (
+            "搜索", "取消", "首页", "我的", "推荐", "关注", "放映厅", "消息",
+            "热榜", "设置", "返回", "Search", "Home", "Me", "加载中", "重试",
+            "网络", "暂无", "空空", "猜你", "历史",
+        ) + tuple(TABISH) + tuple(_TABS) + tuple(_RETRY)
+        def _blank():
             n = hierarchy_text_count(self.d)
-            if n < 3:
-                raise AssertionError(f"white screen after tap n={n} pkg={pkg0}->{pkg1}")
+            if n < 0:
+                return False  # dump error — do not fail
+            if n >= 3:
+                return False
+            if any_text(self.d, _alive):
+                return False
+            clicks = len(clickable_nodes(self.d))
+            return clicks < 1
+        pkg1 = fg_package(self.d)
+        if pkg1 in ("com.ohos.sceneboard",):
+            return
+        if _blank():
+            time.sleep(0.6)
+            if _blank():
+                n = hierarchy_text_count(self.d)
+                raise AssertionError(
+                    f"white screen after tap n={n} pkg={pkg0}->{pkg1}"
+                )
 
 
     @prob(0.96)
