@@ -118,6 +118,13 @@ class HMUiObject:
         self.driver._settle_after_action(prev_fp=prev, timeout=min(0.25, float(settle or 0)))
         return r
 
+    def click_if_exists(self, settle: float = 0.4) -> bool:
+        """hmdriver2 parity — no raise when missing."""
+        if not self.exists(timeout=0):
+            return False
+        self.click(settle=settle)
+        return True
+
     def click_then(self, *assert_texts: str, timeout: float = 1.2, settle: float = 0.4) -> bool:
         """Click, then poll until any assert text exists. Raises AssertionError on miss."""
         self.click(settle=settle)
@@ -163,6 +170,8 @@ class HMUiObject:
         return {}
 
 
+
+
 class HMDevice:
     """Live + optional static hierarchy for precondition checks."""
 
@@ -183,6 +192,10 @@ class HMDevice:
         logger.info(f"Connecting hmdriver2 to {self.serial} …")
         self._hm = Driver(self.serial)
         time.sleep(0.3)  # B8
+        try:
+            self.arm_toast()
+        except Exception:
+            pass
 
     def _bust_live(self):
         """Invalidate short live dump cache after any UI mutation."""
@@ -455,9 +468,9 @@ class HMDevice:
         texts: list = []
         for node in _walk_nodes(root):
             a = _attrs(node)
-            t = str(a.get("text") or "").strip()
-            if t:
-                texts.append(t[:40])
+            lab = str(a.get("text") or a.get("description") or "").strip()
+            if lab:
+                texts.append(lab[:40])
             if len(texts) >= 48:
                 break
         return (len(list(_walk_nodes(root))), tuple(texts))
@@ -561,8 +574,35 @@ class HMDevice:
         ability = activity or "EntryAbility"
         HDCDevice().start_ability(package, ability)
 
-    def xpath(self, *args, **kwargs):
-        raise NotImplementedError("xpath is Android/u2-only; use d(text=...)/d(id=...) on HarmonyOS")
+
+    def xpath(self, expr: str = "", *args, **kwargs):
+        """Harmony xpath over hierarchy (hmdriver2-compatible).
+
+        d.xpath("//*[@text='首页']").click()
+        Uses Kea dump cache / static lock (no thrash).
+        """
+        path = expr or (args[0] if args else "") or kwargs.get("path") or ""
+        if not path:
+            raise TypeError("xpath(expr) requires an xpath string")
+        from .hmXpath import HMXpathElement
+        return HMXpathElement(self, path)
+
+    def arm_toast(self) -> bool:
+        """Start one-shot toast observer (hmdriver2 toast_watcher)."""
+        try:
+            return bool(self._hm.toast_watcher.start())
+        except Exception as e:
+            logger.debug(f"arm_toast: {e}")
+            return False
+
+    def recent_toast(self, timeout: float = 1.0) -> str:
+        """Last toast text if any (may wait up to timeout seconds)."""
+        try:
+            msg = self._hm.toast_watcher.get_toast(timeout=int(max(1, timeout)))
+            return str(msg or "")
+        except Exception:
+            return ""
+
 
 
 class HMDriver:

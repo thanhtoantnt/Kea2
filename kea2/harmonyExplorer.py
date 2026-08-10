@@ -107,6 +107,8 @@ def _clickable_candidates(hierarchy: dict) -> List[Tuple[int, int, int, int, int
             continue
         # scoring
         w = 1
+        if desc and not text:
+            w += 2  # icon-only a11y nodes (hybrid) — still tappable via description
         idl = nid.lower()
         if nid == "tab_text" or idl.startswith("tabs_") or "tab_text" in idl:
             w += 8
@@ -286,9 +288,13 @@ class HarmonyExplorer:
         return any(self.hdc.is_package_foreground(p) for p in self.packages) if self.packages else True
 
     def _content_texts(self, h: dict) -> List[str]:
+        """Visible labels: text preferred, else description (hybrid/icon chrome)."""
         out: List[str] = []
         for node in _walk_nodes(h or {}):
-            t = str(_attrs(node).get("text") or "").strip()
+            a = _attrs(node)
+            t = str(a.get("text") or "").strip()
+            if not t:
+                t = str(a.get("description") or "").strip()
             if not t or t.startswith("file://"):
                 continue
             if _TIME_RE.match(t) or _BATTERY_RE.match(t):

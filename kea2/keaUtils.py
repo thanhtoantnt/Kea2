@@ -831,12 +831,25 @@ class KeaTestRunner(TextTestRunner, KeaOptionSetter, SetUpClassExtension):
                             _h = _json.loads(_hr) if isinstance(_hr, str) else _hr
                             _texts = []
                             for _n in _walk_nodes(_h or {}):
-                                _t = str(_attrs(_n).get("text") or "").strip()
+                                _a = _attrs(_n)
+                                _t = str(_a.get("text") or "").strip() or str(
+                                    _a.get("description") or ""
+                                ).strip()
                                 if _t and _t not in _texts:
                                     _texts.append(_t)
+                            _toast = ""
+                            try:
+                                _toast = self.scriptDriver.recent_toast(timeout=1) or ""
+                            except Exception:
+                                _toast = ""
                             logger.warning(
-                                f"[Harmony] prop FAIL {propertyName} fg_texts={_texts[:15]!r}"
+                                f"[Harmony] prop FAIL {propertyName} "
+                                f"fg_texts={_texts[:15]!r} toast={_toast!r}"
                             )
+                            try:
+                                self.scriptDriver.arm_toast()
+                            except Exception:
+                                pass
                         except Exception:
                             pass
                     explorer.log_script_info(
